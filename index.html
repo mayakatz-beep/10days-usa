@@ -1645,8 +1645,9 @@ function highlightState(id) {
           const svgEl = mapSvgSel.node();
           if (wrap && svgEl) {
             const sc = svgEl.getBoundingClientRect().width / 975;
+            // Only scroll horizontally — vertical scroll would push the NE panel off-screen
             wrap.scrollTo({ left: Math.max(0, cx * sc - wrap.offsetWidth / 2),
-                            top:  Math.max(0, cy * sc - wrap.offsetHeight / 2), behavior: 'smooth' });
+                            top: 0, behavior: 'smooth' });
           }
         }
       }
