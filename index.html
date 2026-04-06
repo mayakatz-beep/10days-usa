@@ -381,7 +381,13 @@ input:focus{border-color:var(--accent2);box-shadow:0 0 0 3px rgba(37,99,235,.25)
 
 <!-- ══ MAP OVERLAY ══════════════════════════════════════════════════ -->
 <div class="map-ov hidden" id="map-ov" role="dialog" aria-modal="true" aria-label="USA Color Map">
-  <div class="map-top"><h2>🗺️ USA Color Map</h2><button class="map-close" onclick="closeMap()" aria-label="Close map">✕ Close</button></div>
+  <div class="map-top">
+    <div style="flex:1;min-width:0;overflow:hidden">
+      <h2 id="map-ov-title" style="font-family:'Bebas Neue',sans-serif;font-size:17px;color:#fff;margin:0;line-height:1.2">🗺️ USA Color Map</h2>
+      <div id="map-ov-sub" style="font-size:11px;color:rgba(255,255,255,.8);margin-top:2px;line-height:1.3;white-space:nowrap;overflow:hidden;text-overflow:ellipsis"></div>
+    </div>
+    <button class="map-close" onclick="closeMap()" aria-label="Close map">✕ Close</button>
+  </div>
   <div class="map-leg">
     <div class="leg"><div class="ldot" style="background:#1B4F9C"></div>Dark Blue</div>
     <div class="leg"><div class="ldot" style="background:#38BDF8"></div>Lt. Blue</div>
@@ -390,7 +396,6 @@ input:focus{border-color:var(--accent2);box-shadow:0 0 0 3px rgba(37,99,235,.25)
     <div class="leg"><div class="ldot" style="background:#16803D"></div>Green</div>
     <div class="leg"><div class="ldot" style="background:#e2e8f0;border:1px solid #94a3b8"></div>AK/HI</div>
   </div>
-  <div class="hl-banner" id="hl-banner"></div>
   <div class="map-scroll"><div id="map-wrap">
     <div id="map-loading" style="text-align:center;padding:28px;color:var(--muted);font-size:13px">Loading<span class="dots"></span></div>
   </div></div>
@@ -601,7 +606,7 @@ function rt(tile, { sm, onclick:oc, glow, pick } = {}) {
 function togglePin(id, name) {
   if (pinnedState === id) {
     pinnedState = null;
-    document.getElementById('hl-banner').style.display = 'none';
+    updateHlBanner(null);
     if (mapSvgSel) highlightState(null);
   } else {
     pinnedState = id;
@@ -1543,6 +1548,9 @@ const FIPS = {
   '45':'SC','46':'SD','47':'TN','48':'TX','49':'UT','50':'VT','51':'VA','53':'WA','54':'WV','55':'WI','56':'WY'
 };
 let topoCache = null, mapBuilt = false, mapSvgSel = null, mapFeats = null, mapPathFn = null;
+// States shown in the northeast panel (too small for readable inline labels)
+// ME & NY added because their SVG centroids fall inside the panel bounding box
+const PANEL = ['ME','VT','NH','MA','RI','CT','NY','NJ','DE','MD'];
 
 async function openMap(hlId, hlName) {
   if (hlId) { pinnedState = hlId; updateHlBanner(hlId, hlName); }
@@ -1550,7 +1558,10 @@ async function openMap(hlId, hlName) {
   if (!mapBuilt) { await buildMap(); mapBuilt = true; }
   highlightState(pinnedState);
 }
-function closeMap() { document.getElementById('map-ov').classList.add('hidden'); }
+function closeMap() {
+  document.getElementById('map-ov').classList.add('hidden');
+  if (!pinnedState) updateHlBanner(null);
+}
 
 function openHelp() { document.getElementById('help-ov').classList.remove('hidden'); }
 function closeHelp() { document.getElementById('help-ov').classList.add('hidden'); }
@@ -1576,13 +1587,18 @@ function openGameMap() {
 }
 
 function updateHlBanner(id, name) {
-  const el = document.getElementById('hl-banner');
-  if (!id) { el.style.display = 'none'; return; }
+  const titleEl = document.getElementById('map-ov-title');
+  const subEl   = document.getElementById('map-ov-sub');
+  if (!titleEl) return;
+  if (!id) {
+    titleEl.textContent = '🗺️ USA Color Map';
+    if (subEl) subEl.textContent = '';
+    return;
+  }
   const cname = { db:'Dark Blue', lb:'Light Blue', red:'Red', tan:'Tan', grn:'Green', wht:'White' }[SC[id] || 'wht'];
   const neighbors = (BOR[id] || []).map(n => SN[n] || n).join(', ');
-  el.innerHTML = '<b>📍 ' + (name || id) + '</b> &nbsp;·&nbsp; ' + cname +
-    '<br><span style="font-size:11px;opacity:.8">🚶 Borders: ' + (neighbors || 'none') + '</span>';
-  el.style.display = 'block';
+  titleEl.textContent = '📍 ' + (name || id) + ' · ' + cname;
+  if (subEl) subEl.textContent = '🚶 Borders: ' + (neighbors || 'none');
 }
 
 function highlightState(id) {
@@ -1601,23 +1617,37 @@ function highlightState(id) {
     .filter(d => FIPS[String(d.id).padStart(2, '0')] === id)
     .attr('stroke', '#f59e0b').attr('stroke-width', '3').raise();
   mapSvgSel.select('#hl-m').remove();
+  // Reset any previous panel row highlight
+  mapSvgSel.selectAll('[id^="pr-"]').attr('stroke', 'none').attr('stroke-width', '0');
+
   if (id && mapFeats && mapPathFn) {
-    const feat = mapFeats.find(f => FIPS[String(f.id).padStart(2, '0')] === id);
-    if (feat) {
-      const [cx, cy] = mapPathFn.centroid(feat);
-      if (!isNaN(cx)) {
-        const g = mapSvgSel.append('g').attr('id', 'hl-m');
-        g.append('circle').attr('cx', cx).attr('cy', cy).attr('r', 13)
-          .attr('fill', 'none').attr('stroke', '#f59e0b').attr('stroke-width', '2').attr('opacity', '0.5')
-          .style('animation', 'pulse-stroke 1.2s ease-in-out infinite');
-        g.append('circle').attr('cx', cx).attr('cy', cy).attr('r', 5)
-          .attr('fill', '#f59e0b').attr('stroke', '#0b1120').attr('stroke-width', '1.5');
-        const wrap = document.querySelector('.map-scroll');
-        const svgEl = mapSvgSel.node();
-        if (wrap && svgEl) {
-          const sc = svgEl.getBoundingClientRect().width / 975;
-          wrap.scrollTo({ left:Math.max(0, cx * sc - wrap.offsetWidth / 2),
-                          top:Math.max(0, cy * sc - wrap.offsetHeight / 2), behavior:'smooth' });
+    if (PANEL.includes(id)) {
+      // Panel state: highlight its row instead of drawing a marker on the map
+      // (centroid falls inside the panel area and would overlap the labels)
+      mapSvgSel.select('#pr-' + id)
+        .attr('stroke', '#f59e0b').attr('stroke-width', '2.5').raise();
+      // Scroll to the right so the panel is visible
+      const wrap = document.querySelector('.map-scroll');
+      if (wrap) wrap.scrollTo({ left: wrap.scrollWidth, top: 0, behavior: 'smooth' });
+    } else {
+      // Regular state: draw circle marker at geographic centroid
+      const feat = mapFeats.find(f => FIPS[String(f.id).padStart(2, '0')] === id);
+      if (feat) {
+        const [cx, cy] = mapPathFn.centroid(feat);
+        if (!isNaN(cx)) {
+          const g = mapSvgSel.append('g').attr('id', 'hl-m');
+          g.append('circle').attr('cx', cx).attr('cy', cy).attr('r', 13)
+            .attr('fill', 'none').attr('stroke', '#f59e0b').attr('stroke-width', '2').attr('opacity', '0.5')
+            .style('animation', 'pulse-stroke 1.2s ease-in-out infinite');
+          g.append('circle').attr('cx', cx).attr('cy', cy).attr('r', 5)
+            .attr('fill', '#f59e0b').attr('stroke', '#0b1120').attr('stroke-width', '1.5');
+          const wrap = document.querySelector('.map-scroll');
+          const svgEl = mapSvgSel.node();
+          if (wrap && svgEl) {
+            const sc = svgEl.getBoundingClientRect().width / 975;
+            wrap.scrollTo({ left: Math.max(0, cx * sc - wrap.offsetWidth / 2),
+                            top:  Math.max(0, cy * sc - wrap.offsetHeight / 2), behavior: 'smooth' });
+          }
         }
       }
     }
@@ -1655,10 +1685,8 @@ async function buildMap() {
       .attr('fill','none').attr('stroke','#1e293b').attr('stroke-width','1')
       .attr('d', pathFn).style('pointer-events','none');
 
-    // ── Northeast panel: tiny states get external labels ─────────────
-    // States too small to label inline
-    const PANEL = ['VT','NH','MA','RI','CT','NJ','DE','MD'];
-    const PX = 814, PY0 = 72, PH = 26, PW = 150;
+    // ── Northeast panel: uses module-scope PANEL (ME & NY added to stop overlap) ──
+    const PX = 798, PY0 = 52, PH = 24, PW = 168;
 
     // Panel background
     svg.append('rect')
@@ -1701,9 +1729,11 @@ async function buildMap() {
         .on('click', () => togglePin(ab, SN[ab]));
 
       rowG.append('rect')
+        .attr('id', 'pr-' + ab)
         .attr('x', PX).attr('y', y - 10)
         .attr('width', PW).attr('height', 20)
-        .attr('fill', hex).attr('rx', 4);
+        .attr('fill', hex).attr('rx', 4)
+        .attr('stroke', 'none').attr('stroke-width', '0');
 
       // Abbreviation
       rowG.append('text')
