@@ -34,7 +34,8 @@ body{display:flex;flex-direction:column}
 .card{background:var(--surf);border:2px solid var(--border);border-radius:16px;padding:22px;width:100%;max-width:360px;margin-top:16px}
 input[type=text]{width:100%;padding:13px 16px;border-radius:10px;border:2px solid var(--border);
   background:#fff;color:var(--text);font-size:17px;font-family:inherit;outline:none;margin-bottom:12px;transition:border .2s}
-input:focus{border-color:var(--accent2)}
+/* FIX #3: visible focus indicator for keyboard navigation */
+input:focus{border-color:var(--accent2);box-shadow:0 0 0 3px rgba(37,99,235,.25)}
 #join-code-in{text-transform:uppercase;font-size:28px;letter-spacing:8px;text-align:center;font-weight:700}
 .btn{width:100%;padding:13px;border-radius:10px;border:none;font-size:15px;font-family:inherit;
   font-weight:700;cursor:pointer;transition:transform .1s;margin-bottom:10px}
@@ -59,10 +60,11 @@ input:focus{border-color:var(--accent2)}
 .bot-row{display:flex;align-items:center;justify-content:space-between;background:var(--surf2);
   border:1px solid var(--border);border-radius:10px;padding:10px 14px;margin-bottom:10px}
 .bot-ctrl{display:flex;align-items:center;gap:10px}
-.adj-btn{width:30px;height:30px;border-radius:8px;border:2px solid var(--border);background:#fff;
-  font-size:18px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;color:var(--text)}
+/* FIX #1: touch target minimum 44×44px */
+.adj-btn{width:44px;height:44px;border-radius:10px;border:2px solid var(--border);background:#fff;
+  font-size:22px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;color:var(--text)}
 .adj-btn:hover{border-color:var(--accent2)}
-.bot-n{font-size:20px;font-weight:900;min-width:22px;text-align:center;color:var(--text)}
+.bot-n{font-size:22px;font-weight:900;min-width:28px;text-align:center;color:var(--text)}
 
 /* Lobby bot controls */
 .bot-lobby-ctrl{display:flex;gap:8px;margin-bottom:8px}
@@ -82,7 +84,7 @@ input:focus{border-color:var(--accent2)}
   align-items:center;justify-content:center;cursor:pointer;transition:border .15s,transform .1s;color:var(--muted);font-size:11px;gap:2px;background:#fff}
 .sslot:not(.filled):hover{border-color:var(--accent2);transform:scale(1.04)}
 .sslot.filled{cursor:default;border-style:solid;border-color:transparent}
-.sslot .snum{font-size:9px;opacity:.6}
+.sslot .snum{font-size:11px;opacity:.6}
 .wait-msg{text-align:center;color:var(--muted);font-size:12px;padding:8px 0}
 
 /* ── Tiles ── */
@@ -91,11 +93,12 @@ input:focus{border-color:var(--accent2)}
   padding:4px;user-select:none;flex-shrink:0;gap:2px;position:relative;
   box-shadow:0 2px 4px rgba(0,0,0,.12)}
 .tile .tab{font-size:14px;font-weight:900}
-.tile .tname{font-size:8px;font-weight:500;opacity:.9;line-height:1.2}
+/* FIX #2: tile name fonts raised to minimum 11px */
+.tile .tname{font-size:11px;font-weight:500;opacity:.9;line-height:1.2}
 .tile .ticon{font-size:19px}
 .tile.sm{--tw:52px;--th:64px}
 .tile.sm .tab{font-size:11px}
-.tile.sm .tname{font-size:7px}
+.tile.sm .tname{font-size:11px}
 .tile.sm .ticon{font-size:15px}
 .tile.glow{box-shadow:0 0 0 3px var(--accent2),0 0 12px rgba(37,99,235,.3)}
 .tile.pick{cursor:pointer}.tile.pick:hover{filter:brightness(1.1);transform:scale(1.05)}
@@ -112,14 +115,16 @@ input:focus{border-color:var(--accent2)}
 .ghdr{background:linear-gradient(90deg,#1e3a8a,#2563eb);padding:10px 14px;display:flex;align-items:center;
   justify-content:space-between;flex-shrink:0}
 .gtitle{font-family:'Bebas Neue',sans-serif;font-size:17px;color:#fff}
-.gcode{font-size:10px;color:rgba(255,255,255,.7)}
+.gcode{font-size:11px;color:rgba(255,255,255,.7);white-space:nowrap}
 .hdr-r{display:flex;align-items:center;gap:7px}
-.tbadge{font-size:11px;background:rgba(255,255,255,.2);border-radius:6px;padding:4px 10px;color:#fff}
+/* FIX #5: header — prevent overflow on mobile, truncate long turn badge */
+.tbadge{font-size:11px;background:rgba(255,255,255,.2);border-radius:6px;padding:4px 10px;color:#fff;
+  max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .tbadge.mine{background:#fff;color:#1e3a8a;font-weight:700}
 .mbt{background:rgba(255,255,255,.2);border:1px solid rgba(255,255,255,.3);color:#fff;padding:5px 9px;border-radius:7px;cursor:pointer;font-size:12px;font-family:inherit}
 .gbody{flex:1;overflow-y:auto;display:flex;flex-direction:column}
 .gsec{padding:9px 12px 6px;background:var(--bg)}
-.sec-h{font-size:10px;text-transform:uppercase;letter-spacing:1.5px;color:var(--muted);margin-bottom:8px}
+.sec-h{font-size:11px;text-transform:uppercase;letter-spacing:1.5px;color:var(--muted);margin-bottom:8px}
 .opp-row{display:flex;align-items:center;gap:8px;margin-bottom:5px}
 .opp-name{font-size:11px;font-weight:600;min-width:66px;flex-shrink:0}
 .opp-name.act{color:var(--accent)}
@@ -138,7 +143,7 @@ input:focus{border-color:var(--accent2)}
 .held-lbl{font-size:11px;color:#92400E;font-weight:600;flex:1}
 .hand-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:5px;padding:4px 0 8px}
 .hslot{cursor:pointer;display:flex;flex-direction:column;align-items:center}
-.hslot .slbl{font-size:8px;text-align:center;color:var(--muted);margin-bottom:2px;font-weight:600}
+.hslot .slbl{font-size:11px;text-align:center;color:var(--muted);margin-bottom:2px;font-weight:600}
 .hslot .tile{width:100%}
 .hslot.target .tile{box-shadow:0 0 0 3px var(--accent2)}
 .gfoot{background:var(--surf);padding:9px 12px;flex-shrink:0;border-top:2px solid var(--border);display:flex;gap:8px}
@@ -571,6 +576,11 @@ function genCode() {
 }
 
 function createRoom() {
+  // FIX #4: show loading state immediately so user knows something is happening
+  const btn = document.querySelector('#s-cj .btn-a');
+  if (btn) { btn.disabled = true; btn.textContent = 'Connecting…'; }
+  document.getElementById('connecting-msg').classList.remove('hidden');
+
   const code = genCode();
   MP.code = code; MP.isHost = true; MP.offline = false;
   peer = new Peer(code, { debug:0 });
@@ -580,6 +590,8 @@ function createRoom() {
       id:code, name:MP.myName, connected:true, bot:false,
       setupDone:false, setupIdx:0, hand:Array(10).fill(null), pending:null
     }];
+    if (btn) { btn.disabled = false; btn.textContent = '🎲 Create Multiplayer Room'; }
+    document.getElementById('connecting-msg').classList.add('hidden');
     showLobby();
   });
   peer.on('connection', conn => {
@@ -590,7 +602,12 @@ function createRoom() {
       conn.on('error', () => hostGuestDisconnect(conn.peer));
     });
   });
-  peer.on('error', e => { toast('Connection error: ' + e.type); show('s-cj'); });
+  peer.on('error', e => {
+    if (btn) { btn.disabled = false; btn.textContent = '🎲 Create Multiplayer Room'; }
+    document.getElementById('connecting-msg').classList.add('hidden');
+    toast('Connection error: ' + e.type);
+    show('s-cj');
+  });
 }
 
 function joinRoom() {
