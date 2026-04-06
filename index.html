@@ -189,6 +189,26 @@ input:focus{border-color:var(--accent2);box-shadow:0 0 0 3px rgba(37,99,235,.25)
 .toast.show{transform:translateX(-50%) translateY(0)}
 .toast.ok{background:#16a34a}.toast.info{background:#2563eb}
 
+/* ── Touch-target fixes for small buttons ── */
+.copy-btn{background:none;border:1px solid var(--border);color:var(--muted);padding:11px 18px;
+  border-radius:8px;cursor:pointer;font-size:13px;margin-top:6px;min-height:44px;font-family:inherit}
+.map-close{background:rgba(255,255,255,.2);border:1px solid rgba(255,255,255,.3);color:#fff;
+  padding:10px 18px;border-radius:8px;cursor:pointer;font-size:13px;font-family:inherit;min-height:44px}
+.cancel-btn{width:100%;padding:13px;border-radius:8px;border:2px solid var(--border);
+  background:transparent;color:var(--text);cursor:pointer;font-size:13px;font-family:inherit;min-height:44px}
+.mbt{background:rgba(255,255,255,.2);border:1px solid rgba(255,255,255,.3);color:#fff;
+  padding:10px 12px;border-radius:7px;cursor:pointer;font-size:13px;font-family:inherit;min-height:44px;min-width:44px}
+
+/* ── Spinner (lobby wait + connecting states) ── */
+.spinner{width:30px;height:30px;border:3px solid var(--border);border-top-color:var(--accent2);
+  border-radius:50%;animation:spin .75s linear infinite;margin:0 auto}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+/* ── Help overlay ── */
+.help-rule{display:flex;align-items:flex-start;gap:10px;padding:8px 0;border-bottom:1px solid var(--border);font-size:13px}
+.help-rule:last-child{border-bottom:none}
+.help-icon{font-size:20px;flex-shrink:0;width:28px;text-align:center}
+
 /* Misc */
 @keyframes shake{0%,100%{transform:translateX(0)}25%{transform:translateX(-6px)}75%{transform:translateX(6px)}}
 .shake{animation:shake .3s}
@@ -275,7 +295,10 @@ input:focus{border-color:var(--accent2);box-shadow:0 0 0 3px rgba(37,99,235,.25)
       <p style="font-size:11px;color:var(--muted);text-align:center">Need at least 2 players (humans or bots)</p>
     </div>
     <div id="lob-wait-area" style="display:none">
-      <p style="text-align:center;color:var(--muted);font-size:13px">Waiting for host<span class="dots"></span></p>
+      <div style="display:flex;flex-direction:column;align-items:center;gap:10px;padding:16px 0">
+        <div class="spinner"></div>
+        <p style="text-align:center;color:var(--muted);font-size:13px">Waiting for host to start<span class="dots"></span></p>
+      </div>
     </div>
   </div>
 </div>
@@ -287,7 +310,8 @@ input:focus{border-color:var(--accent2);box-shadow:0 0 0 3px rgba(37,99,235,.25)
       <div style="font-size:11px;color:var(--muted)">Setting up your journey</div>
       <div id="setup-cnt" style="font-size:12px;color:var(--accent);font-weight:700">0 / 10 placed</div>
     </div>
-    <button class="mbt" onclick="openSetupMap()">🗺️ Map</button>
+    <button class="mbt" onclick="openSetupMap()" aria-label="Open map">🗺️ Map</button>
+    <button class="mbt" onclick="openHelp()" aria-label="How to play" style="font-size:16px;margin-left:6px">?</button>
   </div>
   <div class="prog-bar"><div class="prog-fill" id="prog-fill" style="width:0"></div></div>
   <div class="setup-body">
@@ -335,15 +359,17 @@ input:focus{border-color:var(--accent2);box-shadow:0 0 0 3px rgba(37,99,235,.25)
     </div>
   </div>
   <div class="gfoot">
-    <button class="chk-btn" onclick="checkJourney()">🔍</button>
-    <button class="dec-btn" id="dec-btn" onclick="declareTen()" disabled>🎉 Declare 10 Days!</button>
+    <button class="chk-btn" onclick="checkJourney()" aria-label="Check if journey is valid">🔍</button>
+    <button class="chk-btn" onclick="openHelp()" aria-label="How to play" style="font-size:16px">?</button>
+    <button class="dec-btn" id="dec-btn" onclick="declareTen()" disabled aria-label="Declare 10 Days win">🎉 Declare!</button>
   </div>
 </div>
 
 <!-- ══ DISCARD CHOOSER ══════════════════════════════════════════════ -->
-<div class="overlay hidden" id="dc-ov">
+<div class="overlay hidden" id="dc-ov" role="dialog" aria-modal="true" aria-labelledby="dc-ov-title"
+  onclick="if(event.target===this)closeDC()">
   <div class="ovbox">
-    <h3>Send to discard pile</h3>
+    <h3 id="dc-ov-title">Send to discard pile</h3>
     <p id="dc-desc"></p>
     <div class="dopt-row" id="dc-opts"></div>
     <button class="cancel-btn" onclick="closeDC()">Cancel</button>
@@ -351,8 +377,8 @@ input:focus{border-color:var(--accent2);box-shadow:0 0 0 3px rgba(37,99,235,.25)
 </div>
 
 <!-- ══ MAP OVERLAY ══════════════════════════════════════════════════ -->
-<div class="map-ov hidden" id="map-ov">
-  <div class="map-top"><h2>🗺️ USA Color Map</h2><button class="map-close" onclick="closeMap()">✕ Close</button></div>
+<div class="map-ov hidden" id="map-ov" role="dialog" aria-modal="true" aria-label="USA Color Map">
+  <div class="map-top"><h2>🗺️ USA Color Map</h2><button class="map-close" onclick="closeMap()" aria-label="Close map">✕ Close</button></div>
   <div class="map-leg">
     <div class="leg"><div class="ldot" style="background:#1B4F9C"></div>Dark Blue</div>
     <div class="leg"><div class="ldot" style="background:#38BDF8"></div>Lt. Blue</div>
@@ -365,7 +391,7 @@ input:focus{border-color:var(--accent2);box-shadow:0 0 0 3px rgba(37,99,235,.25)
   <div class="map-scroll"><div id="map-wrap">
     <div id="map-loading" style="text-align:center;padding:28px;color:var(--muted);font-size:13px">Loading<span class="dots"></span></div>
   </div></div>
-  <div class="map-note">✈ Same color = airplane &nbsp;|&nbsp; 🚗 One state between = car &nbsp;|&nbsp; 🚶 Adjacent = foot</div>
+  <div class="map-note">🚶 Adjacent states = on foot &nbsp;|&nbsp; 🚗 One state between = car &nbsp;|&nbsp; ✈ Same color = airplane</div>
 </div>
 
 <!-- ══ END ═══════════════════════════════════════════════════════════ -->
@@ -379,7 +405,44 @@ input:focus{border-color:var(--accent2);box-shadow:0 0 0 3px rgba(37,99,235,.25)
   <button class="btn btn-b" style="max-width:280px" onclick="location.reload()">Play Again</button>
 </div>
 
-<div class="toast" id="toast"></div>
+<!-- ══ HOW TO PLAY ════════════════════════════════════════════════════ -->
+<div class="overlay hidden" id="help-ov" role="dialog" aria-modal="true" aria-label="How to play"
+  onclick="if(event.target===this)closeHelp()">
+  <div class="ovbox" style="max-width:340px;max-height:90vh;overflow-y:auto">
+    <h3 style="font-size:17px;margin-bottom:14px">🗺️ How to Play</h3>
+    <div class="help-rule">
+      <span class="help-icon">🎯</span>
+      <div><b>Goal:</b> Build a valid 10-day road trip across the USA — fill all 10 slots with a connected route.</div>
+    </div>
+    <div class="help-rule">
+      <span class="help-icon">🔄</span>
+      <div><b>Your turn:</b> Draw a tile from the deck or a discard pile, then place it in your journey or discard it.</div>
+    </div>
+    <div class="help-rule">
+      <span class="help-icon">🚶</span>
+      <div><b>On foot:</b> Two adjacent (bordering) states can sit next to each other directly.</div>
+    </div>
+    <div class="help-rule">
+      <span class="help-icon">🚗</span>
+      <div><b>Car:</b> Place between two states that are almost adjacent (one state separates them).</div>
+    </div>
+    <div class="help-rule">
+      <span class="help-icon">✈️</span>
+      <div><b>Airplane:</b> Place between two states of the <b>same color</b>. Alaska &amp; Hawaii count as any color.</div>
+    </div>
+    <div class="help-rule">
+      <span class="help-icon">📍</span>
+      <div><b>Pin a state:</b> Tap the 📍 icon on a tile to highlight it on the map with its neighbors.</div>
+    </div>
+    <div class="help-rule">
+      <span class="help-icon">🏆</span>
+      <div><b>Win:</b> When your route is valid, tap <b>🔍 Check</b> to verify, then <b>🎉 Declare!</b></div>
+    </div>
+    <button class="btn btn-a" style="margin-top:16px" onclick="closeHelp()">Got it! Let's play →</button>
+  </div>
+</div>
+
+<div class="toast" id="toast" aria-live="polite" aria-atomic="true"></div>
 
 <script>
 // ═══════════════════════════════════════════════════════════════════
@@ -1143,6 +1206,7 @@ function onPlayingStarted(firstId, firstName) {
   show('s-game');
   renderGame();
   saveState();
+  maybeShowFirstRunHelp(); // show tutorial on very first game
   if (firstId === MP.myId) toast('You go first! 🎯', 'ok');
   else toast(firstName + ' goes first', 'info');
 }
@@ -1207,11 +1271,20 @@ function showDC(action) {
   MP.dcAction = action;
   const t = action === 'swap' ? MP.displaced : MP.held;
   document.getElementById('dc-desc').textContent =
-    'Discard "' + (t?.name || 'tile') + '" to pile:';
+    'Discard "' + (t?.name || 'tile') + '" — choose a pile:';
   document.getElementById('dc-opts').innerHTML = [0,1,2].map(i => {
     const top = MP.discards[i];
-    return '<div class="dopt" onclick="confirmDC(' + i + ')">' +
-      rt(top, { sm:true }) + '<span class="pnum">Pile ' + (i+1) + '</span></div>';
+    // Get pile size from host state if available, else estimate
+    const pileArr = MP.isHost ? (MP.HOST.discards[i] || []) : [];
+    const count = pileArr.length;
+    const countLabel = MP.isHost
+      ? (count === 0 ? 'empty' : count + ' tile' + (count > 1 ? 's' : ''))
+      : (top ? 'has tiles' : 'empty');
+    return '<div class="dopt" onclick="confirmDC(' + i + ')" aria-label="Discard to pile ' + (i+1) + '">' +
+      rt(top, { sm:true }) +
+      '<span class="pnum" style="font-size:11px;font-weight:600">Pile ' + (i+1) + '</span>' +
+      '<span style="font-size:10px;color:var(--muted)">' + countLabel + '</span>' +
+      '</div>';
   }).join('');
   document.getElementById('dc-ov').classList.remove('hidden');
 }
@@ -1474,6 +1547,19 @@ async function openMap(hlId, hlName) {
   highlightState(pinnedState);
 }
 function closeMap() { document.getElementById('map-ov').classList.add('hidden'); }
+
+function openHelp() { document.getElementById('help-ov').classList.remove('hidden'); }
+function closeHelp() { document.getElementById('help-ov').classList.add('hidden'); }
+
+// Show help automatically on first-ever game start
+function maybeShowFirstRunHelp() {
+  try {
+    if (!localStorage.getItem('10days_seen_help')) {
+      localStorage.setItem('10days_seen_help', '1');
+      setTimeout(openHelp, 600);
+    }
+  } catch(e) {}
+}
 
 function openSetupMap() {
   const tile = MP.setupPending;
@@ -1788,6 +1874,7 @@ document.addEventListener('keydown', e => {
   if (e.key === 'Escape') {
     closeDC();
     closeMap();
+    closeHelp();
   }
 });
 
