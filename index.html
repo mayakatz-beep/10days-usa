@@ -382,9 +382,9 @@ input:focus{border-color:var(--accent2);box-shadow:0 0 0 3px rgba(37,99,235,.25)
 <!-- ══ MAP OVERLAY ══════════════════════════════════════════════════ -->
 <div class="map-ov hidden" id="map-ov" role="dialog" aria-modal="true" aria-label="USA Color Map">
   <div class="map-top">
-    <div style="flex:1;min-width:0;overflow:hidden">
-      <h2 id="map-ov-title" style="font-family:'Bebas Neue',sans-serif;font-size:17px;color:#fff;margin:0;line-height:1.2">🗺️ USA Color Map</h2>
-      <div id="map-ov-sub" style="font-size:11px;color:rgba(255,255,255,.8);margin-top:2px;line-height:1.3;white-space:nowrap;overflow:hidden;text-overflow:ellipsis"></div>
+    <div style="flex:1;min-width:0;overflow:hidden;display:flex;align-items:center;gap:10px">
+      <h2 id="map-ov-title" style="font-family:'Bebas Neue',sans-serif;font-size:17px;color:#fff;margin:0;white-space:nowrap">🗺️ USA Color Map</h2>
+      <div id="map-ov-sub" style="font-size:11px;color:rgba(255,255,255,.75);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex:1"></div>
     </div>
     <button class="map-close" onclick="closeMap()" aria-label="Close map">✕ Close</button>
   </div>
@@ -1548,9 +1548,9 @@ const FIPS = {
   '45':'SC','46':'SD','47':'TN','48':'TX','49':'UT','50':'VT','51':'VA','53':'WA','54':'WV','55':'WI','56':'WY'
 };
 let topoCache = null, mapBuilt = false, mapSvgSel = null, mapFeats = null, mapPathFn = null;
-// States shown in the northeast panel (too small for readable inline labels)
-// ME & NY added because their SVG centroids fall inside the panel bounding box
-const PANEL = ['ME','VT','NH','MA','RI','CT','NY','NJ','DE','MD'];
+// States shown in the northeast panel — suppresses inline labels whose centroids
+// fall inside the panel bounding box (ME, NY, PA centroids all land in that region)
+const PANEL = ['ME','VT','NH','MA','RI','CT','NY','PA','NJ','DE','MD'];
 
 async function openMap(hlId, hlName) {
   if (hlId) { pinnedState = hlId; updateHlBanner(hlId, hlName); }
@@ -1596,9 +1596,9 @@ function updateHlBanner(id, name) {
     return;
   }
   const cname = { db:'Dark Blue', lb:'Light Blue', red:'Red', tan:'Tan', grn:'Green', wht:'White' }[SC[id] || 'wht'];
-  const neighbors = (BOR[id] || []).map(n => SN[n] || n).join(', ');
+  const neighborAbbrs = (BOR[id] || []).join(' · ');
   titleEl.textContent = '📍 ' + (name || id) + ' · ' + cname;
-  if (subEl) subEl.textContent = '🚶 Borders: ' + (neighbors || 'none');
+  if (subEl) subEl.textContent = neighborAbbrs ? ('borders: ' + neighborAbbrs) : '';
 }
 
 function highlightState(id) {
@@ -1685,8 +1685,8 @@ async function buildMap() {
       .attr('fill','none').attr('stroke','#1e293b').attr('stroke-width','1')
       .attr('d', pathFn).style('pointer-events','none');
 
-    // ── Northeast panel: uses module-scope PANEL (ME & NY added to stop overlap) ──
-    const PX = 798, PY0 = 52, PH = 24, PW = 168;
+    // ── Northeast panel: uses module-scope PANEL (ME, NY, PA added to stop overlap) ──
+    const PX = 798, PY0 = 52, PH = 22, PW = 168;
 
     // Panel background
     svg.append('rect')
