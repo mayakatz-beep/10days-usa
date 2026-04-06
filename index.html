@@ -176,8 +176,57 @@ input:focus{border-color:var(--accent2);box-shadow:0 0 0 3px rgba(37,99,235,.25)
 .leg{display:flex;align-items:center;gap:5px;font-size:11px;font-weight:500;color:var(--text)}
 .ldot{width:13px;height:13px;border-radius:3px;flex-shrink:0}
 .hl-banner{display:none;margin:0 8px 4px;padding:7px 14px;border-radius:8px;font-size:13px;color:var(--accent2);background:rgba(37,99,235,.1);border:1px solid rgba(37,99,235,.3);line-height:1.6;flex-shrink:0}
+.map-content{flex:1;display:flex;overflow:hidden;min-height:0}
 .map-scroll{flex:1;overflow:auto;padding:6px}
 .map-note{text-align:center;font-size:11px;color:var(--muted);padding:4px 14px 8px;flex-shrink:0}
+
+/* ── NE Panel — HTML sidebar (replaces SVG panel) ── */
+.ne-panel-html{
+  width:154px;flex-shrink:0;overflow-y:auto;
+  background:rgba(10,18,35,.93);
+  border-left:1px solid rgba(255,255,255,.13);
+  /* Fade bottom to signal more content */
+  -webkit-mask-image:linear-gradient(to bottom,black 86%,transparent 100%);
+          mask-image:linear-gradient(to bottom,black 86%,transparent 100%);
+}
+.ne-panel-html.at-bottom{-webkit-mask-image:none;mask-image:none}
+.ne-panel-pills{display:flex;flex-direction:column}
+.ne-ptitle{font-size:7px;font-weight:700;letter-spacing:1.5px;color:rgba(255,255,255,.38);
+  text-align:center;padding:8px 0 4px;font-family:'DM Sans',sans-serif;pointer-events:none}
+.ne-pill{
+  display:flex;align-items:center;gap:0;
+  width:100%;height:26px;padding:0;
+  background:none;border:none;border-left:3px solid transparent;
+  cursor:pointer;font-family:'DM Sans',sans-serif;
+  transition:background .12s;text-align:left;
+}
+.ne-pill:hover{background:rgba(255,255,255,.11)}
+.ne-pill:focus-visible{outline:2px solid #f59e0b;outline-offset:-2px}
+.ne-pill.selected{border-left-color:#f59e0b;animation:row-pulse .45s ease-out}
+@keyframes row-pulse{0%{background:rgba(245,158,11,.38)}100%{background:transparent}}
+.ne-pill-ab{
+  font-size:10px;font-weight:900;min-width:38px;text-align:center;
+  padding:0 5px;flex-shrink:0;line-height:26px;
+}
+.ne-pill-name{font-size:9px;font-weight:500;color:rgba(255,255,255,.83);
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex:1;padding-right:6px}
+
+/* Mobile: horizontal pills at bottom */
+@media(max-width:600px){
+  .map-content{flex-direction:column}
+  .ne-panel-html{
+    width:100%;max-height:108px;flex-shrink:0;
+    border-left:none;border-top:2px solid rgba(255,255,255,.18);
+    overflow:hidden;-webkit-mask-image:none;mask-image:none;
+  }
+  .ne-panel-pills{flex-direction:row;flex-wrap:wrap;padding:6px;gap:4px;
+    overflow-y:auto;max-height:80px}
+  .ne-ptitle{padding:4px 0 2px}
+  .ne-pill{width:auto;height:auto;padding:3px 7px;border-radius:6px;
+    border-left:none;border:2px solid transparent}
+  .ne-pill.selected{border-color:#f59e0b;background:rgba(245,158,11,.18);animation:none}
+  .ne-pill-name{display:none}
+}
 
 /* End screen */
 #s-end{align-items:center;justify-content:center;padding:32px 24px;gap:14px;
@@ -396,9 +445,12 @@ input:focus{border-color:var(--accent2);box-shadow:0 0 0 3px rgba(37,99,235,.25)
     <div class="leg"><div class="ldot" style="background:#16803D"></div>Green</div>
     <div class="leg"><div class="ldot" style="background:#e2e8f0;border:1px solid #94a3b8"></div>AK/HI</div>
   </div>
-  <div class="map-scroll"><div id="map-wrap">
-    <div id="map-loading" style="text-align:center;padding:28px;color:var(--muted);font-size:13px">Loading<span class="dots"></span></div>
-  </div></div>
+  <div class="map-content">
+    <div class="map-scroll"><div id="map-wrap">
+      <div id="map-loading" style="text-align:center;padding:28px;color:var(--muted);font-size:13px">Loading<span class="dots"></span></div>
+    </div></div>
+    <div id="ne-panel-html" class="ne-panel-html"></div>
+  </div>
   <div class="map-note">🚶 Adjacent states = on foot &nbsp;|&nbsp; 🚗 One state between = car &nbsp;|&nbsp; ✈ Same color = airplane</div>
 </div>
 
@@ -1595,20 +1647,26 @@ function updateHlBanner(id, name) {
     if (subEl) subEl.textContent = '';
     return;
   }
-  const cname = { db:'Dark Blue', lb:'Light Blue', red:'Red', tan:'Tan', grn:'Green', wht:'White' }[SC[id] || 'wht'];
-  const neighborAbbrs = (BOR[id] || []).join(' · ');
-  titleEl.textContent = '📍 ' + (name || id) + ' · ' + cname;
-  if (subEl) subEl.textContent = neighborAbbrs ? ('borders: ' + neighborAbbrs) : '';
+  const hex = C_HEX[SC[id]] || '#888';
+  const neighborNames = (BOR[id] || []).map(n => SN[n] || n).join(' · ');
+  // Color chip instead of text color name
+  titleEl.innerHTML = '📍 ' + (name || id) +
+    ' <span style="display:inline-block;width:11px;height:11px;border-radius:3px;' +
+    'background:' + hex + ';vertical-align:middle;margin-left:4px;' +
+    'border:1px solid rgba(255,255,255,.35)"></span>';
+  if (subEl) subEl.textContent = neighborNames ? 'borders: ' + neighborNames : '';
 }
 
 function highlightState(id) {
   if (!mapSvgSel) return;
   const neighbors = new Set(BOR[id] || []);
+
+  // ── Dim/highlight state paths ──
   mapSvgSel.selectAll('path.sp')
     .attr('stroke', '#0b1120').attr('stroke-width', '0.8')
     .attr('opacity', id ? d => {
       const ab = FIPS[String(d.id).padStart(2, '0')];
-      return (ab === id || neighbors.has(ab)) ? '1' : '0.22';
+      return (ab === id || neighbors.has(ab)) ? '1' : '0.5'; // H2: was 0.22, now 0.5
     } : '1');
   mapSvgSel.selectAll('path.sp')
     .filter(d => neighbors.has(FIPS[String(d.id).padStart(2, '0')]))
@@ -1616,23 +1674,28 @@ function highlightState(id) {
   mapSvgSel.selectAll('path.sp')
     .filter(d => FIPS[String(d.id).padStart(2, '0')] === id)
     .attr('stroke', '#f59e0b').attr('stroke-width', '3').raise();
-  // Always keep the NE panel on top — raise() on a state path would push it below the panel
-  mapSvgSel.select('#ne-panel').raise();
-  mapSvgSel.select('#hl-m').remove();
-  // Reset any previous panel row highlight
-  mapSvgSel.selectAll('[id^="pr-"]').attr('stroke', 'none').attr('stroke-width', '0');
 
-  if (id && mapFeats && mapPathFn) {
-    if (PANEL.includes(id)) {
-      // Panel state: highlight its row instead of drawing a marker on the map
-      // (centroid falls inside the panel area and would overlap the labels)
-      mapSvgSel.select('#pr-' + id)
-        .attr('stroke', '#f59e0b').attr('stroke-width', '2.5').raise();
-      // Scroll to the right so the panel is visible
-      const wrap = document.querySelector('.map-scroll');
-      if (wrap) wrap.scrollTo({ left: wrap.scrollWidth, top: 0, behavior: 'smooth' });
-    } else {
-      // Regular state: draw circle marker at geographic centroid
+  // ── HTML panel: update selected pill (H1/H2/M2) ──
+  document.querySelectorAll('.ne-pill.selected').forEach(p => p.classList.remove('selected'));
+  // ── SVG dots: reset ──
+  mapSvgSel.selectAll('.panel-dot')
+    .attr('r', '3.5').attr('stroke', '#1e293b').attr('stroke-width', '0.8');
+
+  mapSvgSel.select('#hl-m').remove();
+
+  if (id) {
+    // Highlight HTML pill + scroll into view
+    const pill = document.querySelector('.ne-pill[data-ab="' + id + '"]');
+    if (pill) {
+      pill.classList.add('selected');
+      pill.scrollIntoView({ block:'nearest', behavior:'smooth' });
+    }
+    // Highlight SVG dot for panel states
+    mapSvgSel.select('.pd-' + id)
+      .attr('r', '5').attr('stroke', '#f59e0b').attr('stroke-width', '2');
+
+    if (!PANEL.includes(id) && mapFeats && mapPathFn) {
+      // Non-panel state: draw animated circle marker at centroid
       const feat = mapFeats.find(f => FIPS[String(f.id).padStart(2, '0')] === id);
       if (feat) {
         const [cx, cy] = mapPathFn.centroid(feat);
@@ -1643,13 +1706,11 @@ function highlightState(id) {
             .style('animation', 'pulse-stroke 1.2s ease-in-out infinite');
           g.append('circle').attr('cx', cx).attr('cy', cy).attr('r', 5)
             .attr('fill', '#f59e0b').attr('stroke', '#0b1120').attr('stroke-width', '1.5');
-          // Keep NE panel always on top after appending marker
-          mapSvgSel.select('#ne-panel').raise();
+          // Scroll horizontally only (vertical scroll hid ME at the top of the old panel)
           const wrap = document.querySelector('.map-scroll');
           const svgEl = mapSvgSel.node();
           if (wrap && svgEl) {
             const sc = svgEl.getBoundingClientRect().width / 975;
-            // Only scroll horizontally — vertical scroll would push the NE panel off-screen
             wrap.scrollTo({ left: Math.max(0, cx * sc - wrap.offsetWidth / 2),
                             top: 0, behavior: 'smooth' });
           }
@@ -1666,8 +1727,9 @@ async function buildMap() {
       topoCache = await fetch('https://cdn.jsdelivr.net/npm/us-atlas@3/states-10m.json').then(r => r.json());
     wrap.innerHTML = '';
 
+    // viewBox uses full 975px width — the HTML sidebar is separate from the SVG now
     const svg = d3.create('svg').attr('viewBox', '0 0 975 610')
-      .style('width', '100%').style('min-width', '640px').style('height', 'auto').style('display', 'block');
+      .style('width', '100%').style('min-width', '500px').style('height', 'auto').style('display', 'block');
     const proj = d3.geoAlbersUsa().scale(1300).translate([487.5, 308]);
     const pathFn = d3.geoPath().projection(proj);
     const feats = topojson.feature(topoCache, topoCache.objects.states).features;
@@ -1690,75 +1752,20 @@ async function buildMap() {
       .attr('fill','none').attr('stroke','#1e293b').attr('stroke-width','1')
       .attr('d', pathFn).style('pointer-events','none');
 
-    // ── Northeast panel: uses module-scope PANEL (ME, NY, PA added to stop overlap) ──
-    const PX = 798, PY0 = 52, PH = 22, PW = 168;
-
-    // Wrap everything in one group so we can .raise() it above any highlighted state path
-    const panelG = svg.append('g').attr('id', 'ne-panel');
-
-    // Panel background
-    panelG.append('rect')
-      .attr('x', PX - 5).attr('y', PY0 - 16)
-      .attr('width', PW + 10).attr('height', PANEL.length * PH + 18)
-      .attr('fill','rgba(15,23,42,0.55)').attr('rx', 7)
-      .attr('stroke','rgba(255,255,255,0.2)').attr('stroke-width','0.8')
-      .style('pointer-events','none');
-
-    panelG.append('text')
-      .attr('x', PX + PW/2).attr('y', PY0 - 5)
-      .attr('text-anchor','middle').attr('font-size','7').attr('font-weight','700')
-      .attr('font-family','DM Sans,system-ui,sans-serif')
-      .attr('fill','rgba(255,255,255,0.5)').attr('letter-spacing','1.5')
-      .text('NORTHEAST').style('pointer-events','none');
-
-    PANEL.forEach((ab, i) => {
-      const y   = PY0 + i * PH;
-      const col = SC[ab] || 'wht';
-      const hex = C_HEX[col], txt = C_TXT[col];
+    // ── Small clickable dots on PANEL state centroids ────────────────
+    // (Panel labels are now in the HTML sidebar — dots keep states tappable on map)
+    PANEL.forEach(ab => {
       const feat = feats.find(f => FIPS[String(f.id).padStart(2,'0')] === ab);
-      const cen  = feat ? pathFn.centroid(feat) : null;
-
-      // Leader line from state centroid to panel row
-      if (cen && !isNaN(cen[0])) {
-        panelG.append('line')
-          .attr('x1', cen[0]).attr('y1', cen[1])
-          .attr('x2', PX - 5).attr('y2', y + 4)
-          .attr('stroke', hex).attr('stroke-width','1.2').attr('opacity','0.55')
-          .style('pointer-events','none');
-        // Dot on state
-        panelG.append('circle')
-          .attr('cx', cen[0]).attr('cy', cen[1]).attr('r', 3.5)
-          .attr('fill', hex).attr('stroke','#1e293b').attr('stroke-width','0.8')
-          .style('pointer-events','none');
-      }
-
-      // Colored pill (clickable)
-      const rowG = panelG.append('g').style('cursor','pointer')
+      if (!feat) return;
+      const c = pathFn.centroid(feat);
+      if (!c || isNaN(c[0])) return;
+      svg.append('circle')
+        .attr('cx', c[0]).attr('cy', c[1]).attr('r', 3.5)
+        .attr('class', 'panel-dot pd-' + ab)
+        .attr('fill', C_HEX[SC[ab] || 'wht'])
+        .attr('stroke', '#1e293b').attr('stroke-width', '0.8')
+        .style('cursor', 'pointer')
         .on('click', () => togglePin(ab, SN[ab]));
-
-      rowG.append('rect')
-        .attr('id', 'pr-' + ab)
-        .attr('x', PX).attr('y', y - 10)
-        .attr('width', PW).attr('height', 20)
-        .attr('fill', hex).attr('rx', 4)
-        .attr('stroke', 'none').attr('stroke-width', '0');
-
-      // Abbreviation
-      rowG.append('text')
-        .attr('x', PX + 8).attr('y', y + 1)
-        .attr('dominant-baseline','middle')
-        .attr('font-size','10').attr('font-weight','900')
-        .attr('font-family','DM Sans,system-ui,sans-serif').attr('fill', txt)
-        .text(ab);
-
-      // Full name
-      rowG.append('text')
-        .attr('x', PX + 33).attr('y', y + 1)
-        .attr('dominant-baseline','middle')
-        .attr('font-size','8').attr('font-weight','500')
-        .attr('font-family','DM Sans,system-ui,sans-serif')
-        .attr('fill', txt).attr('opacity','0.9')
-        .text(SN[ab] || ab);
     });
 
     // ── Inline labels for all other states ───────────────────────────
@@ -1799,10 +1806,38 @@ async function buildMap() {
 
     wrap.appendChild(svg.node());
     mapSvgSel = d3.select(svg.node());
+    buildPanel(); // populate the HTML sidebar
 
   } catch(e) {
     wrap.innerHTML = '<div style="text-align:center;padding:24px;color:#ef4444">Map failed: ' + e.message + '</div>';
   }
+}
+
+// ── Build HTML Northeast Panel ────────────────────────────────────
+function buildPanel() {
+  const container = document.getElementById('ne-panel-html');
+  if (!container) return;
+  container.innerHTML =
+    '<div class="ne-ptitle">NORTHEAST</div>' +
+    '<div class="ne-panel-pills" id="ne-panel-pills"></div>';
+  const pills = document.getElementById('ne-panel-pills');
+  PANEL.forEach(ab => {
+    const hex = C_HEX[SC[ab] || 'wht'], txt = C_TXT[SC[ab] || 'wht'];
+    const btn = document.createElement('button');
+    btn.className = 'ne-pill';
+    btn.dataset.ab = ab;
+    btn.setAttribute('aria-label', SN[ab] || ab);
+    btn.innerHTML =
+      '<span class="ne-pill-ab" style="background:' + hex + ';color:' + txt + '">' + ab + '</span>' +
+      '<span class="ne-pill-name">' + (SN[ab] || ab) + '</span>';
+    btn.addEventListener('click', () => togglePin(ab, SN[ab]));
+    pills.appendChild(btn);
+  });
+  // Fade-out scroll indicator: remove when fully scrolled
+  container.addEventListener('scroll', () => {
+    const atBottom = container.scrollHeight - container.scrollTop <= container.clientHeight + 4;
+    container.classList.toggle('at-bottom', atBottom);
+  }, { passive:true });
 }
 
 // ═══════════════════════════════════════════════════════════════════
