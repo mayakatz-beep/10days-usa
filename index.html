@@ -1616,6 +1616,8 @@ function highlightState(id) {
   mapSvgSel.selectAll('path.sp')
     .filter(d => FIPS[String(d.id).padStart(2, '0')] === id)
     .attr('stroke', '#f59e0b').attr('stroke-width', '3').raise();
+  // Always keep the NE panel on top — raise() on a state path would push it below the panel
+  mapSvgSel.select('#ne-panel').raise();
   mapSvgSel.select('#hl-m').remove();
   // Reset any previous panel row highlight
   mapSvgSel.selectAll('[id^="pr-"]').attr('stroke', 'none').attr('stroke-width', '0');
@@ -1641,6 +1643,8 @@ function highlightState(id) {
             .style('animation', 'pulse-stroke 1.2s ease-in-out infinite');
           g.append('circle').attr('cx', cx).attr('cy', cy).attr('r', 5)
             .attr('fill', '#f59e0b').attr('stroke', '#0b1120').attr('stroke-width', '1.5');
+          // Keep NE panel always on top after appending marker
+          mapSvgSel.select('#ne-panel').raise();
           const wrap = document.querySelector('.map-scroll');
           const svgEl = mapSvgSel.node();
           if (wrap && svgEl) {
@@ -1689,15 +1693,18 @@ async function buildMap() {
     // ── Northeast panel: uses module-scope PANEL (ME, NY, PA added to stop overlap) ──
     const PX = 798, PY0 = 52, PH = 22, PW = 168;
 
+    // Wrap everything in one group so we can .raise() it above any highlighted state path
+    const panelG = svg.append('g').attr('id', 'ne-panel');
+
     // Panel background
-    svg.append('rect')
+    panelG.append('rect')
       .attr('x', PX - 5).attr('y', PY0 - 16)
       .attr('width', PW + 10).attr('height', PANEL.length * PH + 18)
       .attr('fill','rgba(15,23,42,0.55)').attr('rx', 7)
       .attr('stroke','rgba(255,255,255,0.2)').attr('stroke-width','0.8')
       .style('pointer-events','none');
 
-    svg.append('text')
+    panelG.append('text')
       .attr('x', PX + PW/2).attr('y', PY0 - 5)
       .attr('text-anchor','middle').attr('font-size','7').attr('font-weight','700')
       .attr('font-family','DM Sans,system-ui,sans-serif')
@@ -1713,20 +1720,20 @@ async function buildMap() {
 
       // Leader line from state centroid to panel row
       if (cen && !isNaN(cen[0])) {
-        svg.append('line')
+        panelG.append('line')
           .attr('x1', cen[0]).attr('y1', cen[1])
           .attr('x2', PX - 5).attr('y2', y + 4)
           .attr('stroke', hex).attr('stroke-width','1.2').attr('opacity','0.55')
           .style('pointer-events','none');
         // Dot on state
-        svg.append('circle')
+        panelG.append('circle')
           .attr('cx', cen[0]).attr('cy', cen[1]).attr('r', 3.5)
           .attr('fill', hex).attr('stroke','#1e293b').attr('stroke-width','0.8')
           .style('pointer-events','none');
       }
 
       // Colored pill (clickable)
-      const rowG = svg.append('g').style('cursor','pointer')
+      const rowG = panelG.append('g').style('cursor','pointer')
         .on('click', () => togglePin(ab, SN[ab]));
 
       rowG.append('rect')
