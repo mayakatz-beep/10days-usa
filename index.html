@@ -1749,7 +1749,7 @@ async function buildMap() {
     // ── State borders ────────────────────────────────────────────────
     svg.append('path')
       .datum(topojson.mesh(topoCache, topoCache.objects.states, (a,b) => a !== b))
-      .attr('fill','none').attr('stroke','#1e293b').attr('stroke-width','1')
+      .attr('fill','none').attr('stroke','#1e293b').attr('stroke-width','1.9')
       .attr('d', pathFn).style('pointer-events','none');
 
     // ── Small clickable dots on PANEL state centroids ────────────────
