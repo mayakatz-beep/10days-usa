@@ -1739,7 +1739,7 @@ async function buildMap() {
     svg.selectAll('path.sp').data(feats).enter().append('path').attr('class', 'sp')
       .attr('d', pathFn)
       .attr('fill', d => { const ab = FIPS[String(d.id).padStart(2,'0')]; return C_HEX[SC[ab]||'wht']||'#334155'; })
-      .attr('stroke', '#fff').attr('stroke-width', '0.4')
+      .attr('stroke', '#fff').attr('stroke-width', '0.8')
       .style('cursor', 'pointer')
       .on('click', (event, d) => {
         const ab = FIPS[String(d.id).padStart(2,'0')];
@@ -1800,8 +1800,9 @@ async function buildMap() {
         t.attr('fill', textCol).text(text);
       }
 
-      haloText(c[0], c[1] - 5,  ab,         '10', '900', 1);
-      haloText(c[0], c[1] + 7,  SN[ab]||ab, '7',  '500', 0.92);
+      haloText(c[0], c[1] - 7,  ab,         '15', '900', 1);
+haloText(c[0], c[1] + 10, SN[ab]||ab, '10', '500', 0.92);
+
     });
 
     wrap.appendChild(svg.node());
