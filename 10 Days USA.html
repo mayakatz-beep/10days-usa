@@ -1,0 +1,1615 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>10 Days in the USA</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/peerjs/1.5.2/peerjs.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/topojson/3.0.2/topojson.min.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:wght@400;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<!-- RESUME BANNER -->
+<div id="resume-banner" class="hidden">
+  <div class="resume-title">⚡ Game in progress found</div>
+  <div class="resume-meta">
+    <span id="resume-name"></span> · Room <b id="resume-room"></b> · <span id="resume-phase"></span>
+  </div>
+  <div class="resume-actions">
+    <button onclick="resumeGame()" class="resume-btn-a">↩ Resume Game</button>
+    <button onclick="discardSave()" class="resume-btn-b">Discard</button>
+  </div>
+</div>
+
+<!-- ══ INTRO ════════════════════════════════════════════════════════ -->
+<div id="s-intro" class="screen active">
+  <div class="logo"><div class="days">10 DAYS</div><div class="sub">in the USA &nbsp;·&nbsp; Multiplayer + Bots</div></div>
+  <div class="card">
+    <input type="text" id="name-in" placeholder="Your name" maxlength="14" autocomplete="off"
+      onkeydown="if(event.key==='Enter')goNext()">
+    <button class="btn btn-a" onclick="goNext()">Continue →</button>
+  </div>
+</div>
+
+<!-- ══ CREATE / JOIN ════════════════════════════════════════════════ -->
+<div id="s-cj" class="screen">
+  <div class="logo"><div class="days">10 DAYS</div></div>
+  <div class="card">
+    <div class="hi-line">Hi <b id="greet"></b>!</div>
+
+    <button class="btn btn-a" onclick="createRoom()">🎲 Create Multiplayer Room</button>
+    <div class="divider">— or join existing room —</div>
+    <input type="text" id="join-code-in" placeholder="ABCD" maxlength="4" autocomplete="off"
+      onkeydown="if(event.key==='Enter')joinRoom()">
+    <button class="btn btn-b" onclick="joinRoom()">🔑 Join Room</button>
+
+    <div class="divider">— or play offline —</div>
+    <div class="bot-row">
+      <span class="bot-label">🤖 Number of bots</span>
+      <div class="bot-ctrl">
+        <button class="adj-btn" onclick="adjBots(-1)">−</button>
+        <span class="bot-n" id="bot-n">2</span>
+        <button class="adj-btn" onclick="adjBots(1)">+</button>
+      </div>
+    </div>
+    <button class="btn btn-c" onclick="playVsBots()">▶ Play vs Bots</button>
+
+    <div class="connecting-msg hidden" id="connecting-msg">Connecting<span class="dots"></span></div>
+  </div>
+</div>
+
+<!-- ══ LOBBY ════════════════════════════════════════════════════════ -->
+<div id="s-lobby" class="screen">
+  <div class="logo"><div class="days">10 DAYS</div></div>
+  <div class="card">
+    <div class="code-box">
+      <div class="code-lbl">Room Code</div>
+      <div class="code-val" id="lob-code"></div>
+      <button class="copy-btn" onclick="copyCode()">📋 Copy &amp; share</button>
+    </div>
+    <div id="lob-players"></div>
+
+    <!-- Host controls -->
+    <div id="lob-host-area" style="display:none">
+      <div class="bot-lobby-ctrl" id="bot-lobby-ctrl"></div>
+      <button class="btn btn-a" id="start-btn" onclick="hostStartGame()" disabled>Start Game</button>
+      <p class="lobby-note">Need at least 2 players (humans or bots)</p>
+    </div>
+    <div id="lob-wait-area" style="display:none">
+      <div class="lobby-waiting">
+        <div class="spinner"></div>
+        <p>Waiting for host to start<span class="dots"></span></p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══ SETUP ════════════════════════════════════════════════════════ -->
+<div id="s-setup" class="screen">
+  <div class="setup-hdr">
+    <div>
+      <div class="setup-tag">Setting up your journey</div>
+      <div id="setup-cnt" class="setup-count">0 / 10 placed</div>
+    </div>
+    <div class="setup-hdr-actions">
+      <button class="mbt" onclick="openSetupMap()" aria-label="Open map">🗺️ Map</button>
+      <button class="mbt mbt-q" onclick="openHelp()" aria-label="How to play">?</button>
+    </div>
+  </div>
+  <div class="prog-bar"><div class="prog-fill" id="prog-fill" style="width:0"></div></div>
+  <div class="setup-body">
+    <div id="setup-prompt" class="setup-prompt">Tap a slot to place:</div>
+    <div id="setup-showcase" class="setup-showcase"></div>
+    <div class="setup-grid" id="setup-grid"></div>
+    <div class="wait-msg hidden" id="setup-wait">All placed! Waiting for others<span class="dots"></span></div>
+  </div>
+</div>
+
+<!-- ══ GAME ═════════════════════════════════════════════════════════ -->
+<div id="s-game" class="screen">
+  <div class="ghdr">
+    <div class="ghdr-l">
+      <div class="gtitle">10 Days <em>USA</em></div>
+      <div class="gcode" id="g-code-wrap">Room <span id="g-code"></span></div>
+    </div>
+    <div class="hdr-r">
+      <button class="mbt" id="map-game-btn" onclick="openGameMap()">🗺️</button>
+      <div class="tbadge" id="tbadge">—</div>
+    </div>
+  </div>
+  <div class="react-bar" id="react-bar">
+    <button class="react-btn" onclick="sendReact('❤️')">❤️</button>
+    <button class="react-btn" onclick="sendReact('👍')">👍</button>
+    <button class="react-btn" onclick="sendReact('😢')">😢</button>
+    <button class="react-btn" onclick="sendReact('😡')">😡</button>
+  </div>
+  <div class="gbody">
+    <div class="gsec gsec-opp">
+      <div class="sec-h" id="opp-label">Other Players</div>
+      <div id="opp-list"></div>
+    </div>
+    <div class="gsec gsec-draw">
+      <div class="sec-h">Draw a Tile</div>
+      <div class="draw-row">
+        <button class="dpile" id="dpile-btn" onclick="drawFrom('pile')" disabled>
+          <span class="dpile-icon">🂠</span>
+          <span class="dcount" id="deck-cnt">0</span>
+          <span class="dpile-label">DECK</span>
+        </button>
+        <div id="disc-0" onclick="drawFrom(0)"></div>
+        <div id="disc-1" onclick="drawFrom(1)"></div>
+        <div id="disc-2" onclick="drawFrom(2)"></div>
+      </div>
+    </div>
+    <div class="held-bar hidden" id="held-bar">
+      <div id="held-disp"></div>
+      <div class="held-lbl">← tap a slot to swap, or drop on a discard pile</div>
+    </div>
+    <div class="gsec gsec-hand">
+      <div class="sec-h">Your Journey — <span id="hand-status" class="hand-status"></span></div>
+      <div class="hand-grid" id="hand-row"></div>
+    </div>
+  </div>
+  <div class="gfoot">
+    <button class="chk-btn" onclick="checkJourney()" aria-label="Check if journey is valid">🔍</button>
+    <button class="chk-btn chk-q" onclick="openHelp()" aria-label="How to play">?</button>
+    <button class="dec-btn" id="dec-btn" onclick="declareTen()" disabled aria-label="Declare 10 Days win">🎉 Declare!</button>
+  </div>
+</div>
+
+<!-- ══ DISCARD CHOOSER ══════════════════════════════════════════════ -->
+<div class="overlay hidden" id="dc-ov" role="dialog" aria-modal="true" aria-labelledby="dc-ov-title"
+  onclick="if(event.target===this)closeDC()">
+  <div class="ovbox">
+    <h3 id="dc-ov-title">Send to discard pile</h3>
+    <p id="dc-desc"></p>
+    <div class="dopt-row" id="dc-opts"></div>
+    <button class="cancel-btn" onclick="closeDC()">Cancel</button>
+  </div>
+</div>
+
+<!-- ══ MAP OVERLAY ══════════════════════════════════════════════════ -->
+<div class="map-ov hidden" id="map-ov" role="dialog" aria-modal="true" aria-label="USA Color Map">
+  <div class="map-top">
+    <div class="map-top-l">
+      <h2 id="map-ov-title">🗺️ USA Color Map</h2>
+      <div id="map-ov-sub" class="map-ov-sub"></div>
+    </div>
+    <button class="map-close" onclick="closeMap()" aria-label="Close map">✕ Close</button>
+  </div>
+  <div class="map-leg">
+    <div class="leg"><div class="ldot" style="background:#1B4F9C"></div>Dark Blue</div>
+    <div class="leg"><div class="ldot" style="background:#38BDF8"></div>Lt. Blue</div>
+    <div class="leg"><div class="ldot" style="background:#DC2626"></div>Red</div>
+    <div class="leg"><div class="ldot" style="background:#C4922A"></div>Tan</div>
+    <div class="leg"><div class="ldot" style="background:#16803D"></div>Green</div>
+    <div class="leg"><div class="ldot ldot-wht"></div>AK/HI</div>
+  </div>
+  <div class="map-content">
+    <div class="map-scroll"><div id="map-wrap">
+      <div id="map-loading" class="map-loading">Loading<span class="dots"></span></div>
+    </div></div>
+    <div id="ne-panel-html" class="ne-panel-html"></div>
+  </div>
+  <div class="map-note">🚶 Adjacent states = on foot &nbsp;|&nbsp; 🚗 One state between = car &nbsp;|&nbsp; ✈ Same color = airplane</div>
+</div>
+
+<!-- ══ END ═══════════════════════════════════════════════════════════ -->
+<div id="s-end" class="screen">
+  <div class="trophy">🏆</div>
+  <div class="wname" id="wname"></div>
+  <p class="end-sub">completed the journey!</p>
+  <div class="end-cap">Winning route</div>
+  <div class="wjrn" id="wjrn"></div>
+  <div style="height:16px"></div>
+  <button class="btn btn-b end-again" onclick="location.reload()">Play Again</button>
+</div>
+
+<!-- ══ HOW TO PLAY ════════════════════════════════════════════════════ -->
+<div class="overlay hidden" id="help-ov" role="dialog" aria-modal="true" aria-label="How to play"
+  onclick="if(event.target===this)closeHelp()">
+  <div class="ovbox ovbox-help">
+    <h3 class="help-title">🗺️ How to Play</h3>
+    <div class="help-rule">
+      <span class="help-icon">🎯</span>
+      <div><b>Goal:</b> Build a valid 10-day road trip across the USA — fill all 10 slots with a connected route.</div>
+    </div>
+    <div class="help-rule">
+      <span class="help-icon">🔄</span>
+      <div><b>Your turn:</b> Draw a tile from the deck or a discard pile, then place it in your journey or discard it.</div>
+    </div>
+    <div class="help-rule">
+      <span class="help-icon">🚶</span>
+      <div><b>On foot:</b> Two adjacent (bordering) states can sit next to each other directly.</div>
+    </div>
+    <div class="help-rule">
+      <span class="help-icon">🚗</span>
+      <div><b>Car:</b> Place between two states that are almost adjacent (one state separates them).</div>
+    </div>
+    <div class="help-rule">
+      <span class="help-icon">✈️</span>
+      <div><b>Airplane:</b> Place between two states of the <b>same color</b>. Alaska &amp; Hawaii count as any color.</div>
+    </div>
+    <div class="help-rule">
+      <span class="help-icon">📍</span>
+      <div><b>Pin a state:</b> Tap the 📍 icon on a tile to highlight it on the map with its neighbors.</div>
+    </div>
+    <div class="help-rule">
+      <span class="help-icon">🏆</span>
+      <div><b>Win:</b> When your route is valid, tap <b>🔍 Check</b> to verify, then <b>🎉 Declare!</b></div>
+    </div>
+    <button class="btn btn-a help-cta" onclick="closeHelp()">Got it! Let's play →</button>
+  </div>
+</div>
+
+<div class="toast" id="toast" aria-live="polite" aria-atomic="true"></div>
+
+<script>
+// ═══════════════════════════════════════════════════════════════════
+// GAME DATA
+// ═══════════════════════════════════════════════════════════════════
+const SC = {
+  ME:'db',NH:'tan',VT:'lb', MA:'red',RI:'tan',CT:'lb',
+  NY:'tan',NJ:'lb', PA:'db', DE:'red',MD:'lb', VA:'db',
+  WV:'tan',NC:'tan',SC:'red',GA:'db', FL:'grn',AL:'red',
+  MS:'db', TN:'grn',KY:'red',OH:'lb', IN:'tan',MI:'grn',
+  WI:'db', MN:'grn',IA:'lb', IL:'grn',MO:'db', AR:'tan',
+  LA:'lb', ND:'db', SD:'tan',NE:'grn',KS:'lb', OK:'grn',
+  TX:'red',NM:'lb', CO:'red',WY:'db', MT:'grn',ID:'red',
+  WA:'db', OR:'lb', CA:'grn',NV:'tan',UT:'grn',AZ:'red',
+  AK:'wht',HI:'wht'
+};
+const SN = {
+  ME:'Maine',NH:'N. Hampshire',VT:'Vermont',MA:'Massachusetts',RI:'Rhode Island',CT:'Connecticut',
+  NY:'New York',NJ:'New Jersey',PA:'Pennsylvania',DE:'Delaware',MD:'Maryland',VA:'Virginia',
+  WV:'W. Virginia',NC:'N. Carolina',SC:'S. Carolina',GA:'Georgia',FL:'Florida',AL:'Alabama',
+  MS:'Mississippi',TN:'Tennessee',KY:'Kentucky',OH:'Ohio',IN:'Indiana',MI:'Michigan',
+  WI:'Wisconsin',MN:'Minnesota',IA:'Iowa',IL:'Illinois',MO:'Missouri',AR:'Arkansas',
+  LA:'Louisiana',ND:'N. Dakota',SD:'S. Dakota',NE:'Nebraska',KS:'Kansas',OK:'Oklahoma',
+  TX:'Texas',NM:'New Mexico',CO:'Colorado',WY:'Wyoming',MT:'Montana',ID:'Idaho',
+  WA:'Washington',OR:'Oregon',CA:'California',NV:'Nevada',UT:'Utah',AZ:'Arizona',
+  AK:'Alaska',HI:'Hawaii'
+};
+const BOR = {
+  ME:['NH'],NH:['ME','VT','MA'],VT:['NH','NY','MA'],MA:['NH','VT','NY','RI','CT'],RI:['MA','CT'],CT:['MA','RI','NY'],
+  NY:['VT','MA','CT','NJ','PA'],NJ:['NY','PA','DE'],PA:['NY','NJ','DE','MD','WV','OH'],DE:['PA','NJ','MD'],
+  MD:['PA','DE','VA','WV'],VA:['MD','WV','KY','TN','NC'],WV:['PA','MD','VA','KY','OH'],NC:['VA','TN','GA','SC'],
+  SC:['NC','GA'],GA:['NC','SC','FL','AL','TN'],FL:['GA','AL'],AL:['TN','GA','FL','MS'],
+  MS:['TN','AL','LA','AR'],TN:['KY','VA','NC','GA','AL','MS','AR','MO'],KY:['OH','WV','VA','TN','MO','IL','IN'],
+  OH:['PA','WV','KY','IN','MI'],IN:['MI','OH','KY','IL'],MI:['OH','IN','WI'],WI:['MI','MN','IA','IL'],
+  MN:['WI','IA','SD','ND'],IA:['MN','WI','IL','MO','NE','SD'],IL:['WI','IN','KY','MO','IA'],
+  MO:['IA','IL','KY','TN','AR','OK','KS','NE'],AR:['MO','TN','MS','LA','TX','OK'],LA:['AR','MS','TX'],
+  ND:['MN','SD','MT'],SD:['ND','MN','IA','NE','WY','MT'],NE:['SD','IA','MO','KS','CO','WY'],
+  KS:['NE','MO','OK','CO'],OK:['KS','MO','AR','TX','NM','CO'],TX:['OK','AR','LA','NM'],
+  NM:['CO','OK','TX','AZ','UT'],CO:['WY','NE','KS','OK','NM','UT'],WY:['MT','SD','NE','CO','UT','ID'],
+  MT:['ND','SD','WY','ID'],ID:['MT','WY','UT','NV','OR','WA'],WA:['ID','OR'],OR:['WA','ID','NV','CA'],
+  CA:['OR','NV','AZ'],NV:['ID','OR','CA','AZ','UT'],UT:['ID','WY','CO','NM','AZ','NV'],AZ:['UT','NM','CA','NV'],
+  AK:[],HI:[]
+};
+const FOUR_BAD = new Set(['CO-AZ','AZ-CO','NM-UT','UT-NM']);
+const COLORS = ['db','lb','red','tan','grn'];
+const C_HEX = {db:'#1B4F9C',lb:'#38BDF8',red:'#DC2626',tan:'#C4922A',grn:'#16803D',wht:'#e2e8f0'};
+const C_TXT = {db:'#fff',lb:'#0c1a2e',red:'#fff',tan:'#fff',grn:'#fff',wht:'#334155'};
+const C_DARK = new Set(['lb','tan','wht']);
+
+// Two-hop neighbors (precomputed)
+const TWO = {};
+Object.keys(BOR).forEach(id => {
+  const one = new Set(BOR[id]), two = new Set();
+  BOR[id].forEach(n => BOR[n].forEach(n2 => { if (n2 !== id && !one.has(n2)) two.add(n2); }));
+  TWO[id] = [...two];
+});
+
+// ═══════════════════════════════════════════════════════════════════
+// DECK & VALIDATION
+// ═══════════════════════════════════════════════════════════════════
+function shuffle(a) {
+  const r = [...a];
+  for (let i = r.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [r[i], r[j]] = [r[j], r[i]];
+  }
+  return r;
+}
+
+function mkDeck() {
+  const d = [];
+  Object.keys(SC).forEach(id => d.push({ t:'state', id, name:SN[id], c:SC[id] }));
+  COLORS.forEach(c => {
+    d.push({ t:'plane', c, name:'✈ ' + clbl(c) });
+    d.push({ t:'plane', c, name:'✈ ' + clbl(c) });
+  });
+  for (let i = 0; i < 6; i++) d.push({ t:'car', name:'🚗 Auto' });
+  return shuffle(d);
+}
+
+function clbl(c) {
+  return { db:'Dark Blue', lb:'Lt. Blue', red:'Red', tan:'Tan', grn:'Green' }[c] || c;
+}
+
+function borderOk(a, b) {
+  return !FOUR_BAD.has(a + '-' + b) && BOR[a]?.includes(b);
+}
+
+function tripletOk(sa, tr, sb) {
+  const ca = SC[sa.id], cb = SC[sb.id];
+  if (tr.t === 'plane') {
+    const wa = ca === 'wht', wb = cb === 'wht';
+    if (wa && wb) return true;
+    if (wb) return ca === tr.c;
+    if (wa) return cb === tr.c;
+    return ca === tr.c && cb === tr.c;
+  }
+  if (tr.t === 'car') {
+    if (ca === 'wht' || cb === 'wht') return false;
+    return borderOk(sa.id, sb.id) || (TWO[sa.id]?.includes(sb.id) ?? false);
+  }
+  return false;
+}
+
+function validate(hand) {
+  for (let i = 0; i < 10; i++) if (!hand[i]) return { ok:false, r:'Day ' + (i+1) + ' empty' };
+  if (hand[0].t !== 'state') return { ok:false, r:'Day 1 must be a state' };
+  if (hand[9].t !== 'state') return { ok:false, r:'Day 10 must be a state' };
+  for (let i = 0; i < 9; i++) if (hand[i].t !== 'state' && hand[i+1].t !== 'state')
+    return { ok:false, r:'Two transports adjacent at day ' + (i+1) };
+  let i = 0;
+  while (i < 9) {
+    const a = hand[i], b = hand[i+1];
+    if (a.t === 'state' && b.t === 'state') {
+      if (!borderOk(a.id, b.id)) return { ok:false, r:a.name + ' → ' + b.name + ': not adjacent' };
+      i++;
+    } else if (a.t === 'state') {
+      const c = hand[i+2];
+      if (!c || c.t !== 'state') return { ok:false, r:'Transport not between states' };
+      if (!tripletOk(a, b, c)) return { ok:false, r:'Invalid ' + b.t + ': ' + a.name + ' → ' + c.name };
+      i += 2;
+    } else {
+      return { ok:false, r:'Journey starts with transport' };
+    }
+  }
+  return { ok:true };
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// TILE RENDERING
+// ═══════════════════════════════════════════════════════════════════
+let pinnedState = null;
+
+function rt(tile, { sm, onclick:oc, glow, pick } = {}) {
+  if (!tile) return '<div class="tile tempty' + (sm ? ' sm' : '') + '"></div>';
+  const cls = 'tile' + (sm ? ' sm' : '') + (glow ? ' glow' : '') + (pick ? ' pick' : '');
+  const a = oc ? 'onclick="' + oc + '"' : '';
+  if (tile.t === 'state') {
+    const isPinned = (pinnedState === tile.id);
+    const pinStyle = isPinned ? 'box-shadow:0 0 0 3px #f59e0b,0 0 14px rgba(245,158,11,.5);' : '';
+    const pinBtn = sm ? '' :
+      '<span class="pin-btn" onclick="event.stopPropagation();togglePin(\'' + tile.id + '\',\'' + tile.name + '\')">' + (isPinned ? '✕' : '📍') + '</span>';
+    return '<div class="' + cls + ' ts ' + tile.c + '" ' + a + ' style="' + pinStyle + '">' +
+      pinBtn + '<span class="tab">' + tile.id + '</span><span class="tname">' + tile.name + '</span></div>';
+  }
+  if (tile.t === 'plane') return '<div class="' + cls + ' ta ' + tile.c + '" ' + a + '><span class="ticon">✈</span><span class="tname">' + clbl(tile.c) + '</span></div>';
+  if (tile.t === 'car')   return '<div class="' + cls + ' tcar" ' + a + '><span class="ticon">🚗</span><span class="tname">Auto</span></div>';
+  return '';
+}
+
+function togglePin(id, name) {
+  if (pinnedState === id) {
+    pinnedState = null;
+    updateHlBanner(null);
+    if (mapSvgSel) highlightState(null);
+  } else {
+    pinnedState = id;
+    updateHlBanner(id, name);
+    if (!document.getElementById('map-ov').classList.contains('hidden')) highlightState(id);
+  }
+  const mb = document.getElementById('map-game-btn');
+  if (mb) mb.textContent = pinnedState ? ('📍 ' + pinnedState) : '🗺️';
+  if (MP.phase === 'playing') renderGame();
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// LOCAL PLAYER STATE
+// ═══════════════════════════════════════════════════════════════════
+const MP = {
+  myName:'', myId:'', isHost:false, offline:false, code:'', botCount:2,
+  phase:'lobby',
+  players:[], discards:[null,null,null], drawCount:0,
+  currentId:null, currentName:null,
+  myHand:Array(10).fill(null), held:null,
+  setupPending:null, setupFilled:0,
+  dcAction:null, swapSlot:null, displaced:null,
+  HOST:{
+    deck:[], players:[], discards:[null,null,null], drawCount:0,
+    turnIdx:0, heldBy:null, heldTile:null, phase:'lobby'
+  }
+};
+
+// ═══════════════════════════════════════════════════════════════════
+// PEER NETWORKING
+// ═══════════════════════════════════════════════════════════════════
+let peer = null;
+let hostConn = null;
+let guestConns = {};
+
+function genCode() {
+  return Array.from({ length:4 }, () => 'ABCDEFGHJKLMNPQRSTUVWXYZ'[Math.floor(Math.random() * 23)]).join('');
+}
+
+function createRoom() {
+  const btn = document.querySelector('#s-cj .btn-a');
+  if (btn) { btn.disabled = true; btn.textContent = 'Connecting…'; }
+  document.getElementById('connecting-msg').classList.remove('hidden');
+
+  const code = genCode();
+  MP.code = code; MP.isHost = true; MP.offline = false;
+  peer = new Peer(code, { debug:0 });
+  peer.on('open', id => {
+    MP.myId = id;
+    MP.HOST.players = [{
+      id:code, name:MP.myName, connected:true, bot:false,
+      setupDone:false, setupIdx:0, hand:Array(10).fill(null), pending:null
+    }];
+    if (btn) { btn.disabled = false; btn.textContent = '🎲 Create Multiplayer Room'; }
+    document.getElementById('connecting-msg').classList.add('hidden');
+    showLobby();
+  });
+  peer.on('connection', conn => {
+    conn.on('open', () => {
+      guestConns[conn.peer] = conn;
+      conn.on('data', msg => hostReceive(conn.peer, msg));
+      conn.on('close', () => hostGuestDisconnect(conn.peer));
+      conn.on('error', () => hostGuestDisconnect(conn.peer));
+    });
+  });
+  peer.on('error', e => {
+    if (btn) { btn.disabled = false; btn.textContent = '🎲 Create Multiplayer Room'; }
+    document.getElementById('connecting-msg').classList.add('hidden');
+    toast('Connection error: ' + e.type);
+    show('s-cj');
+  });
+}
+
+function joinRoom() {
+  const code = document.getElementById('join-code-in').value.trim().toUpperCase();
+  if (code.length !== 4) { toast('Enter a 4-letter code'); return; }
+  MP.code = code; MP.isHost = false; MP.offline = false;
+  document.getElementById('connecting-msg').classList.remove('hidden');
+  peer = new Peer(undefined, { debug:0 });
+  peer.on('open', id => {
+    MP.myId = id;
+    hostConn = peer.connect(code, { reliable:true });
+    hostConn.on('open', () => hostConn.send({ type:'join', name:MP.myName }));
+    hostConn.on('data', msg => guestReceive(msg));
+    hostConn.on('close', () => toast('Disconnected from host'));
+    hostConn.on('error', () => toast('Host connection error'));
+  });
+  peer.on('error', e => {
+    document.getElementById('connecting-msg').classList.add('hidden');
+    toast(e.type === 'peer-unavailable' ? 'Room not found!' : 'Error: ' + e.type);
+  });
+}
+
+function sendToHost(msg) {
+  if (MP.isHost) { hostReceive(MP.myId, msg); }
+  else { try { hostConn.send(msg); } catch(e) { toast('Connection lost'); } }
+}
+
+function hostBroadcast(msg) {
+  if (MP.offline) return;
+  Object.values(guestConns).forEach(c => { try { c.send(msg); } catch(e) {} });
+}
+
+function hostSend(peerId, msg) {
+  if (peerId.startsWith('__bot_')) return;
+  if (peerId === MP.myId || peerId === '__local__') { guestReceive(msg); return; }
+  try { guestConns[peerId]?.send(msg); } catch(e) {}
+}
+
+function hostReceive(peerId, msg) {
+  switch (msg.type) {
+    case 'join':          hostPlayerJoin(peerId, msg.name);          break;
+    case 'setup_place':   hostSetupPlace(peerId, msg.slot);          break;
+    case 'draw':          hostDraw(peerId, msg.src);                  break;
+    case 'swap':          hostSwap(peerId, msg.slot, msg.discard);   break;
+    case 'discard_held':  hostDiscardHeld(peerId, msg.discard);      break;
+    case 'declare':       hostDeclare(peerId);                        break;
+    case 'req_sync':      hostSendSync(peerId);                      break;
+    case 'react':         hostReact(peerId, msg.emoji);              break;
+  }
+}
+
+function hostPlayerJoin(peerId, name) {
+  if (MP.HOST.phase !== 'lobby') {
+    guestConns[peerId]?.send({ type:'error', msg:'Game already started — too late to join' });
+    return;
+  }
+  const existingById = MP.HOST.players.find(p => p.id === peerId);
+  if (existingById) {
+    existingById.connected = true;
+    hostSendSync(peerId);
+    return;
+  }
+  const nameTaken = MP.HOST.players.some(p => p.name.toLowerCase() === name.toLowerCase());
+  if (nameTaken) {
+    guestConns[peerId]?.send({ type:'error', msg:'Name "' + name + '" is already taken in this room' });
+    return;
+  }
+  if (MP.HOST.players.length >= 4) {
+    guestConns[peerId]?.send({ type:'error', msg:'Room is full (max 4 players)' });
+    return;
+  }
+  MP.HOST.players.push({
+    id:peerId, name, connected:true, bot:false,
+    setupDone:false, setupIdx:0, hand:Array(10).fill(null), pending:null
+  });
+  const pub = publicPlayers();
+  guestConns[peerId]?.send({ type:'joined', players:pub });
+  hostBroadcast({ type:'lobby_update', players:pub });
+  MP.players = pub;
+  renderLobby();
+}
+
+function hostGuestDisconnect(peerId) {
+  const p = MP.HOST.players.find(x => x.id === peerId);
+  if (!p) return;
+  p.connected = false;
+  if (MP.HOST.heldBy === peerId && MP.HOST.heldTile) {
+    MP.HOST.deck.unshift(MP.HOST.heldTile);
+    MP.HOST.heldTile = null;
+    MP.HOST.heldBy = null;
+  }
+  hostBroadcast({ type:'lobby_update', players:publicPlayers() });
+  MP.players = publicPlayers();
+  if (MP.isHost) renderLobby();
+  if (MP.HOST.phase === 'playing') {
+    const cur = MP.HOST.players[MP.HOST.turnIdx];
+    if (cur && cur.id === peerId) hostNextTurn();
+  }
+}
+
+function publicPlayers() {
+  return MP.HOST.players.map(p => ({
+    id:p.id, name:p.name, connected:p.connected,
+    bot:p.bot || false, setupDone:p.setupDone,
+    handSize:p.hand.filter(Boolean).length
+  }));
+}
+
+function publicState() {
+  return {
+    players:publicPlayers(),
+    discards:MP.HOST.discards.map(pile => (pile && pile.length) ? pile[pile.length - 1] : null),
+    drawCount:MP.HOST.deck.length,
+    currentId:MP.HOST.phase === 'playing' ? MP.HOST.players[MP.HOST.turnIdx]?.id : null,
+    currentName:MP.HOST.phase === 'playing' ? MP.HOST.players[MP.HOST.turnIdx]?.name : null,
+    phase:MP.HOST.phase
+  };
+}
+
+function hostBroadcastState() {
+  const s = publicState();
+  hostBroadcast({ type:'public_state', state:s });
+  applyPublicState(s);
+}
+
+function hostSendSync(peerId) {
+  const p = MP.HOST.players.find(x => x.id === peerId);
+  if (p) hostSend(peerId, { type:'hand_update', hand:p.hand });
+  hostSend(peerId, { type:'public_state', state:publicState() });
+}
+
+const BOT_NAMES = ['Bot Alex', 'Bot Sam', 'Bot Jordan'];
+
+function addBotToLobby() {
+  if (!MP.isHost) return;
+  if (MP.HOST.players.length >= 4) { toast('Max 4 players total'); return; }
+  const existingBots = MP.HOST.players.filter(p => p.bot);
+  if (existingBots.length >= 3) { toast('Max 3 bots'); return; }
+  const botName = BOT_NAMES[existingBots.length];
+  MP.HOST.players.push({
+    id:'__bot_' + existingBots.length, name:botName, connected:true, bot:true,
+    setupDone:false, setupIdx:0, hand:Array(10).fill(null), pending:null
+  });
+  MP.players = publicPlayers();
+  hostBroadcast({ type:'lobby_update', players:MP.players });
+  renderLobby();
+}
+
+function removeBotFromLobby() {
+  if (!MP.isHost) return;
+  for (let i = MP.HOST.players.length - 1; i >= 0; i--) {
+    if (MP.HOST.players[i].bot) { MP.HOST.players.splice(i, 1); break; }
+  }
+  MP.players = publicPlayers();
+  hostBroadcast({ type:'lobby_update', players:MP.players });
+  renderLobby();
+}
+
+function hostStartGame() {
+  if (!MP.isHost) return;
+  if (MP.HOST.players.length < 2) { toast('Need at least 2 players'); return; }
+  hostStartGame_impl();
+}
+
+function hostStartGame_impl() {
+  MP.HOST.deck = mkDeck();
+  MP.HOST.phase = 'setup';
+  MP.HOST.heldBy = null;
+  MP.HOST.heldTile = null;
+  MP.HOST.players.forEach(p => {
+    if (p.bot) {
+      for (let i = 0; i < 10; i++) p.hand[i] = MP.HOST.deck.pop();
+      p.setupDone = true;
+    }
+  });
+  hostBroadcast({ type:'game_started' });
+  guestReceive({ type:'game_started' });
+  MP.HOST.players.forEach(p => {
+    if (!p.bot) {
+      p.pending = MP.HOST.deck.pop();
+      hostSend(p.id, { type:'setup_tile', tile:p.pending, filled:0 });
+    }
+  });
+  if (MP.HOST.players.every(p => p.setupDone)) startPlayingPhase();
+}
+
+function hostSetupPlace(peerId, slot) {
+  const p = MP.HOST.players.find(x => x.id === peerId);
+  if (!p || p.bot || !p.pending || p.hand[slot] !== null) return;
+  p.hand[slot] = p.pending;
+  p.pending = null;
+  p.setupIdx++;
+  if (p.setupIdx < 10) {
+    p.pending = MP.HOST.deck.pop();
+    hostSend(peerId, { type:'setup_tile', tile:p.pending, filled:p.setupIdx });
+  } else {
+    p.setupDone = true;
+    hostSend(peerId, { type:'setup_done', hand:p.hand });
+    hostBroadcastState();
+    if (MP.HOST.players.every(x => x.setupDone)) startPlayingPhase();
+  }
+}
+
+function startPlayingPhase() {
+  MP.HOST.discards = [
+    [MP.HOST.deck.pop()],
+    [MP.HOST.deck.pop()],
+    [MP.HOST.deck.pop()]
+  ];
+  MP.HOST.phase = 'playing';
+  MP.HOST.turnIdx = Math.floor(Math.random() * MP.HOST.players.length);
+  const first = MP.HOST.players[MP.HOST.turnIdx];
+  hostBroadcast({ type:'playing', firstId:first.id, firstName:first.name });
+  guestReceive({ type:'playing', firstId:first.id, firstName:first.name });
+  hostBroadcastState();
+  if (first.bot) setTimeout(() => runBotTurn(MP.HOST.turnIdx), 1200);
+}
+
+function hostRefill() {
+  if (MP.HOST.deck.length > 0) return;
+  const tiles = [];
+  MP.HOST.discards.forEach((pile, i) => {
+    if (pile && pile.length > 1) {
+      tiles.push(...pile.slice(0, -1));
+      MP.HOST.discards[i] = [pile[pile.length - 1]];
+    }
+  });
+  MP.HOST.deck = shuffle(tiles);
+}
+
+function hostDraw(peerId, src) {
+  if (MP.HOST.phase !== 'playing') return;
+  const cur = MP.HOST.players[MP.HOST.turnIdx];
+  if (!cur || cur.id !== peerId) return;
+  if (MP.HOST.heldBy) return;
+  let tile;
+  if (src === 'pile') {
+    hostRefill();
+    if (!MP.HOST.deck.length) { hostSend(peerId, { type:'error', msg:'Deck is empty!' }); return; }
+    tile = MP.HOST.deck.pop();
+  } else {
+    const idx = +src, pile = MP.HOST.discards[idx];
+    if (!pile || !pile.length) { hostSend(peerId, { type:'error', msg:'Discard pile is empty' }); return; }
+    tile = pile.pop();
+    if (!pile.length) MP.HOST.discards[idx] = null;
+  }
+  MP.HOST.heldTile = tile;
+  MP.HOST.heldBy = peerId;
+  hostSend(peerId, { type:'drawn', tile });
+  hostBroadcastState();
+}
+
+function hostSwap(peerId, slot, discard) {
+  if (MP.HOST.heldBy !== peerId) return;
+  const p = MP.HOST.players.find(x => x.id === peerId);
+  if (!p) return;
+  const old = p.hand[slot];
+  p.hand[slot] = MP.HOST.heldTile;
+  if (!MP.HOST.discards[discard]) MP.HOST.discards[discard] = [];
+  if (old) MP.HOST.discards[discard].push(old);
+  MP.HOST.heldTile = null;
+  MP.HOST.heldBy = null;
+  hostSend(peerId, { type:'hand_update', hand:p.hand });
+  hostNextTurn();
+}
+
+function hostDiscardHeld(peerId, discard) {
+  if (MP.HOST.heldBy !== peerId) return;
+  if (!MP.HOST.discards[discard]) MP.HOST.discards[discard] = [];
+  MP.HOST.discards[discard].push(MP.HOST.heldTile);
+  MP.HOST.heldTile = null;
+  MP.HOST.heldBy = null;
+  hostSend(peerId, { type:'held_cleared' });
+  hostNextTurn();
+}
+
+function hostDeclare(peerId) {
+  if (MP.HOST.phase !== 'playing') return;
+  if (MP.HOST.heldBy && MP.HOST.heldBy !== peerId) return;
+  const p = MP.HOST.players.find(x => x.id === peerId);
+  if (!p) return;
+  const r = validate(p.hand);
+  if (r.ok) {
+    MP.HOST.phase = 'ended';
+    const winner = { id:p.id, name:p.name, hand:[...p.hand] };
+    hostBroadcast({ type:'won', winner });
+    guestReceive({ type:'won', winner });
+  } else {
+    hostSend(peerId, { type:'invalid_win', reason:r.r });
+  }
+}
+
+function hostNextTurn() {
+  const total = MP.HOST.players.length;
+  if (total === 0) return;
+  let next = (MP.HOST.turnIdx + 1) % total;
+  let tries = 0;
+  while (tries < total && !MP.HOST.players[next].bot && !MP.HOST.players[next].connected) {
+    next = (next + 1) % total;
+    tries++;
+  }
+  if (tries >= total) return;
+  MP.HOST.turnIdx = next;
+  const p = MP.HOST.players[next];
+  hostBroadcast({ type:'turn_changed', id:p.id, name:p.name });
+  guestReceive({ type:'turn_changed', id:p.id, name:p.name });
+  hostBroadcastState();
+  if (p.bot) setTimeout(() => runBotTurn(next), 800);
+}
+
+function runBotTurn(turnIdx) {
+  if (MP.HOST.phase !== 'playing') return;
+  if (MP.HOST.turnIdx !== turnIdx) return;
+  const bot = MP.HOST.players[turnIdx];
+  if (!bot || !bot.bot) return;
+  let bestDraw = null, bestScore = -Infinity;
+  for (let i = 0; i < 3; i++) {
+    const pile = MP.HOST.discards[i];
+    const top = pile && pile.length ? pile[pile.length - 1] : null;
+    if (!top) continue;
+    const score = botBestImprovement(bot.hand, top);
+    if (score > bestScore) { bestScore = score; bestDraw = { src:i, tile:top }; }
+  }
+  if (bestScore < 0) {
+    hostRefill();
+    if (MP.HOST.deck.length) bestDraw = { src:'pile', tile:null };
+  }
+  if (!bestDraw) { hostNextTurn(); return; }
+  let drawn;
+  if (bestDraw.src === 'pile') {
+    if (!MP.HOST.deck.length) { hostNextTurn(); return; }
+    drawn = MP.HOST.deck.pop();
+  } else {
+    const pile = MP.HOST.discards[bestDraw.src];
+    drawn = pile.pop();
+    if (!pile.length) MP.HOST.discards[bestDraw.src] = null;
+  }
+  let bestSlot = -1, bestImprove = -Infinity;
+  const origScore = botScoreHand(bot.hand);
+  for (let i = 0; i < 10; i++) {
+    const old = bot.hand[i];
+    bot.hand[i] = drawn;
+    const improve = botScoreHand(bot.hand) - origScore;
+    if (improve > bestImprove) { bestImprove = improve; bestSlot = i; }
+    bot.hand[i] = old;
+  }
+  let displaced;
+  if (bestImprove >= 0 && bestSlot >= 0) {
+    displaced = bot.hand[bestSlot];
+    bot.hand[bestSlot] = drawn;
+  } else {
+    displaced = drawn;
+  }
+  const di = botPickDiscardPile();
+  if (!MP.HOST.discards[di]) MP.HOST.discards[di] = [];
+  if (displaced) MP.HOST.discards[di].push(displaced);
+  const result = validate(bot.hand);
+  if (result.ok) {
+    MP.HOST.phase = 'ended';
+    const winner = { id:bot.id, name:bot.name, hand:[...bot.hand] };
+    hostBroadcast({ type:'won', winner });
+    guestReceive({ type:'won', winner });
+    return;
+  }
+  hostBroadcastState();
+  hostNextTurn();
+}
+
+function botBestImprovement(hand, tile) {
+  let best = -Infinity;
+  const origScore = botScoreHand(hand);
+  for (let i = 0; i < 10; i++) {
+    const old = hand[i];
+    hand[i] = tile;
+    const improve = botScoreHand(hand) - origScore;
+    if (improve > best) best = improve;
+    hand[i] = old;
+  }
+  return best;
+}
+
+function botScoreHand(hand) {
+  let score = hand.filter(Boolean).length * 0.1;
+  for (let i = 0; i < 9; i++) {
+    const a = hand[i], b = hand[i + 1];
+    if (!a || !b) continue;
+    if (a.t === 'state' && b.t === 'state') {
+      if (borderOk(a.id, b.id)) score += 3;
+    } else if (a.t === 'state' && b.t !== 'state' && hand[i + 2]?.t === 'state') {
+      if (tripletOk(a, b, hand[i + 2])) score += 3;
+    }
+  }
+  return score;
+}
+
+function botPickDiscardPile() {
+  for (let i = 0; i < 3; i++) {
+    const pile = MP.HOST.discards[i];
+    if (!pile || !pile.length) return i;
+  }
+  return Math.floor(Math.random() * 3);
+}
+
+function guestReceive(msg) {
+  switch (msg.type) {
+    case 'joined':       MP.players = msg.players; showLobby();         break;
+    case 'lobby_update': MP.players = msg.players; renderLobby();       break;
+    case 'game_started': startSetupScreen();                             break;
+    case 'setup_tile':   onSetupTile(msg.tile, msg.filled);             break;
+    case 'setup_done':   onSetupDone(msg.hand);                         break;
+    case 'playing':      onPlayingStarted(msg.firstId, msg.firstName);  break;
+    case 'public_state': applyPublicState(msg.state);                   break;
+    case 'drawn':        MP.held = msg.tile; renderGame();              break;
+    case 'hand_update':  MP.myHand = msg.hand; MP.held = null; renderGame(); saveState(); break;
+    case 'held_cleared': MP.held = null; renderGame();                  break;
+    case 'turn_changed': onTurnChanged(msg.id, msg.name); saveState();  break;
+    case 'invalid_win':
+      toast('❌ ' + msg.reason);
+      document.getElementById('dec-btn').classList.add('shake');
+      setTimeout(() => document.getElementById('dec-btn').classList.remove('shake'), 400);
+      break;
+    case 'won':          showWin(msg.winner);                            break;
+    case 'error':        toast(msg.msg);                                break;
+    case 'react':        showReact(msg.emoji, msg.from);               break;
+  }
+}
+
+function applyPublicState(s) {
+  MP.players = s.players;
+  MP.discards = s.discards;
+  MP.drawCount = s.drawCount;
+  MP.currentId = s.currentId;
+  MP.currentName = s.currentName;
+  if (MP.phase === 'playing') renderGame();
+}
+
+function onSetupTile(tile, filled) {
+  MP.setupPending = tile; MP.setupFilled = filled;
+  document.getElementById('setup-showcase').innerHTML = rt(tile);
+  document.getElementById('setup-prompt').textContent = 'Tile ' + (filled + 1) + ' of 10 — tap a slot:';
+  document.getElementById('prog-fill').style.width = (filled * 10) + '%';
+  document.getElementById('setup-cnt').textContent = filled + ' / 10 placed';
+  document.querySelectorAll('.sslot:not(.filled)').forEach(s => s.style.pointerEvents = 'auto');
+}
+
+function onSetupDone(hand) {
+  MP.myHand = hand; MP.setupPending = null;
+  document.getElementById('prog-fill').style.width = '100%';
+  document.getElementById('setup-cnt').textContent = '10 / 10 placed ✓';
+  document.getElementById('setup-showcase').innerHTML = '';
+  document.getElementById('setup-prompt').textContent = '';
+  document.getElementById('setup-wait').classList.remove('hidden');
+  hand.forEach((tile, i) => { if (tile) fillSetupSlot(i, tile); });
+}
+
+function onPlayingStarted(firstId, firstName) {
+  MP.phase = 'playing'; MP.held = null;
+  show('s-game');
+  renderGame();
+  saveState();
+  maybeShowFirstRunHelp();
+  if (firstId === MP.myId) toast('You go first! 🎯', 'ok', 4500);
+  else toast(firstName + ' goes first', 'info', 3500);
+}
+
+function onTurnChanged(id, name) {
+  MP.held = null; MP.currentId = id; MP.currentName = name;
+  if (id === MP.myId) toast('Your turn! 🎯', 'ok', 4500);
+  renderGame();
+}
+
+function setupPlace(idx) {
+  if (!MP.setupPending) return;
+  const slot = document.getElementById('setup-grid').children[idx];
+  if (slot.classList.contains('filled')) { toast('Already filled'); return; }
+  fillSetupSlot(idx, MP.setupPending);
+  MP.myHand[idx] = MP.setupPending;
+  MP.setupPending = null;
+  sendToHost({ type:'setup_place', slot:idx });
+}
+
+function drawFrom(src) {
+  if (MP.held) { toast('You are already holding a tile'); return; }
+  sendToHost({ type:'draw', src:String(src) });
+}
+
+function swapTile(idx) {
+  if (!MP.held) return;
+  MP.swapSlot = idx;
+  MP.displaced = MP.myHand[idx];
+  if (!MP.displaced) {
+    sendToHost({ type:'swap', slot:idx, discard:botPickDiscardPile() });
+    return;
+  }
+  showDC('swap');
+}
+
+function declareTen() {
+  if (MP.held) { toast('Place your tile first'); return; }
+  sendToHost({ type:'declare' });
+}
+
+function checkJourney() {
+  const empty = MP.myHand.filter(t => !t).length;
+  if (empty > 0) { toast(empty + ' slot(s) still empty'); return; }
+  const r = validate(MP.myHand);
+  if (r.ok) toast('✅ Valid! Declare to win!', 'ok');
+  else {
+    toast('❌ ' + r.r);
+    document.getElementById('dec-btn').classList.add('shake');
+    setTimeout(() => document.getElementById('dec-btn').classList.remove('shake'), 400);
+  }
+}
+
+function showDC(action) {
+  MP.dcAction = action;
+  const t = action === 'swap' ? MP.displaced : MP.held;
+  document.getElementById('dc-desc').textContent =
+    'Discard "' + (t?.name || 'tile') + '" — choose a pile:';
+  document.getElementById('dc-opts').innerHTML = [0,1,2].map(i => {
+    const top = MP.discards[i];
+    const pileArr = MP.isHost ? (MP.HOST.discards[i] || []) : [];
+    const count = pileArr.length;
+    const countLabel = MP.isHost
+      ? (count === 0 ? 'empty' : count + ' tile' + (count > 1 ? 's' : ''))
+      : (top ? 'has tiles' : 'empty');
+    return '<div class="dopt" onclick="confirmDC(' + i + ')" aria-label="Discard to pile ' + (i+1) + '">' +
+      rt(top, { sm:true }) +
+      '<span class="pnum">Pile ' + (i+1) + '</span>' +
+      '<span class="pnum-sub">' + countLabel + '</span>' +
+      '</div>';
+  }).join('');
+  document.getElementById('dc-ov').classList.remove('hidden');
+}
+
+function closeDC() {
+  document.getElementById('dc-ov').classList.add('hidden');
+  MP.dcAction = MP.swapSlot = MP.displaced = null;
+}
+
+function confirmDC(di) {
+  document.getElementById('dc-ov').classList.add('hidden');
+  if (MP.dcAction === 'swap') sendToHost({ type:'swap', slot:MP.swapSlot, discard:di });
+  else sendToHost({ type:'discard_held', discard:di });
+  MP.dcAction = MP.swapSlot = MP.displaced = null;
+}
+
+function show(id) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+}
+
+function hostReact(peerId, emoji) {
+  const p = MP.HOST.players.find(x => x.id === peerId);
+  if (!p) return;
+  const msg = { type:'react', emoji, from:p.name };
+  hostBroadcast(msg);
+  guestReceive(msg);
+}
+function sendReact(emoji) {
+  if (MP.phase !== 'playing') return;
+  sendToHost({ type:'react', emoji });
+}
+function showReact(emoji, from) {
+  toast(from + ' ' + emoji, 'info', 2200);
+  const el = document.createElement('div');
+  el.className = 'react-float';
+  el.textContent = emoji;
+  el.style.left = (20 + Math.random() * 60) + 'vw';
+  el.style.bottom = '80px';
+  document.body.appendChild(el);
+  setTimeout(() => el.remove(), 1900);
+}
+
+function toast(msg, type = '', duration = 2800) {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.className = 'toast show' + (type ? ' ' + type : '');
+  clearTimeout(el._t);
+  el._t = setTimeout(() => el.classList.remove('show'), duration);
+}
+
+function copyCode() {
+  navigator.clipboard?.writeText(MP.code)
+    .then(() => toast('Copied! ✓', 'ok'))
+    .catch(() => toast(MP.code, 'info'));
+}
+
+function showLobby() {
+  MP.phase = 'lobby';
+  document.getElementById('lob-code').textContent = MP.code;
+  document.getElementById('g-code').textContent = MP.code;
+  if (MP.isHost) {
+    document.getElementById('lob-host-area').style.display = 'block';
+    document.getElementById('lob-wait-area').style.display = 'none';
+  } else {
+    document.getElementById('lob-host-area').style.display = 'none';
+    document.getElementById('lob-wait-area').style.display = 'block';
+  }
+  renderLobby();
+  show('s-lobby');
+}
+
+function renderLobby() {
+  const list = document.getElementById('lob-players');
+  list.innerHTML = MP.players.map(p => {
+    const isMe = (p.id === MP.myId);
+    const isHostPlayer = MP.isHost ? (p.id === MP.myId) : (p.id === MP.code);
+    return '<div class="prow">' +
+      '<div class="pdot' + (p.connected ? '' : ' off') + '"></div>' +
+      (p.bot ? '<span class="bot-emoji">🤖</span>' : '') +
+      '<span>' + p.name + (isHostPlayer ? '<span class="host-tag">host</span>' : '') + '</span>' +
+      (isMe ? '<span class="you-tag">YOU</span>' : '') +
+      '</div>';
+  }).join('');
+
+  if (MP.isHost) {
+    const startBtn = document.getElementById('start-btn');
+    if (startBtn) startBtn.disabled = MP.players.length < 2;
+    const ctrl = document.getElementById('bot-lobby-ctrl');
+    if (ctrl) {
+      const numBots = MP.HOST.players.filter(p => p.bot).length;
+      const canAdd = MP.HOST.players.length < 4;
+      const canRemove = numBots > 0;
+      ctrl.innerHTML =
+        '<button onclick="addBotToLobby()" ' + (canAdd ? '' : 'disabled') + '>🤖 Add Bot</button>' +
+        '<button onclick="removeBotFromLobby()" ' + (canRemove ? '' : 'disabled') + '>✕ Remove Bot</button>';
+    }
+  }
+}
+
+function startSetupScreen() {
+  MP.phase = 'setup'; MP.myHand = Array(10).fill(null); MP.setupFilled = 0;
+  initSetupGrid();
+  show('s-setup');
+}
+
+function initSetupGrid() {
+  const g = document.getElementById('setup-grid');
+  g.innerHTML = '';
+  for (let i = 0; i < 10; i++) {
+    const d = document.createElement('div');
+    d.className = 'sslot'; d.dataset.i = i;
+    d.innerHTML = '<span class="snum">Day ' + (i+1) + '</span>';
+    d.onclick = () => setupPlace(i);
+    g.appendChild(d);
+  }
+}
+
+function fillSetupSlot(idx, tile) {
+  const slot = document.getElementById('setup-grid').children[idx];
+  slot.classList.add('filled'); slot.onclick = null;
+  const c = tile.t === 'car' ? 'auto' : tile.c;
+  const hex = C_HEX[c] || '#4B5563';
+  const txt = C_TXT[c] || '#fff';
+  slot.style.cssText = 'background:' + hex + ';color:' + txt + ';border-color:transparent';
+  if (tile.t === 'state') {
+    slot.innerHTML = '<span class="snum">Day ' + (idx+1) + '</span>' +
+      '<span class="setup-ab">' + tile.id + '</span>' +
+      '<span class="setup-nm">' + tile.name + '</span>';
+  } else {
+    const icon = tile.t === 'plane' ? '✈' : '🚗';
+    const sub  = tile.t === 'plane' ? clbl(tile.c) : '';
+    slot.innerHTML = '<span class="snum">Day ' + (idx+1) + '</span>' +
+      '<span class="setup-icon">' + icon + '</span>' +
+      (sub ? '<span class="setup-sub">' + sub + '</span>' : '');
+  }
+}
+
+function renderGame() {
+  const myTurn = (MP.currentId === MP.myId);
+  const badge = document.getElementById('tbadge');
+  badge.textContent = myTurn ? 'Your Turn 🎯' : ((MP.currentName || '?') + "'s turn");
+  badge.className = myTurn ? 'tbadge mine' : 'tbadge';
+  document.getElementById('deck-cnt').textContent = MP.drawCount;
+  document.getElementById('dpile-btn').disabled = !myTurn || !!MP.held;
+  for (let i = 0; i < 3; i++) {
+    const el = document.getElementById('disc-' + i);
+    const tile = MP.discards[i];
+    if (myTurn && MP.held) {
+      el.innerHTML = tile
+        ? rt(tile, { pick:true, onclick:'confirmDC(' + i + ')' })
+        : '<div class="tile tempty drop" onclick="confirmDC(' + i + ')"><span>Drop</span></div>';
+    } else if (myTurn) {
+      el.innerHTML = tile
+        ? rt(tile, { pick:true, onclick:'drawFrom(' + i + ')' })
+        : '<div class="tile tempty"><span>Empty</span></div>';
+    } else {
+      el.innerHTML = tile ? rt(tile) : '<div class="tile tempty"><span>Empty</span></div>';
+    }
+  }
+  const hbar = document.getElementById('held-bar');
+  if (MP.held && myTurn) {
+    hbar.classList.remove('hidden');
+    document.getElementById('held-disp').innerHTML = rt(MP.held, { glow:true });
+  } else hbar.classList.add('hidden');
+  const oppLabel = document.getElementById('opp-label');
+  const others = (MP.players || []).filter(p => p.id !== MP.myId);
+  if (oppLabel) oppLabel.textContent = others.some(p => p.bot) ? 'Other Players & Bots' : 'Other Players';
+  document.getElementById('opp-list').innerHTML = others.map(p =>
+    '<div class="opp-row">' +
+    '<span class="opp-name' + (p.id === MP.currentId ? ' act' : '') + '">' +
+    (p.bot ? '🤖 ' : '') + p.name + (p.id === MP.currentId ? ' 🎯' : '') + '</span>' +
+    '<div class="opp-hand">' + Array(p.handSize || 0).fill(0).map(() => '<div class="ocard"></div>').join('') + '</div>' +
+    '<span class="opp-count">' + (p.handSize || 0) + '</span>' +
+    '</div>'
+  ).join('');
+  document.getElementById('hand-row').innerHTML = MP.myHand.map((tile, i) => {
+    const canSwap = myTurn && !!MP.held;
+    return '<div class="hslot' + (canSwap ? ' target' : '') + '">' +
+      '<div class="slbl">Day ' + (i+1) + '</div>' +
+      (tile
+        ? rt(tile, { pick:canSwap, onclick:canSwap ? 'swapTile(' + i + ')' : '' })
+        : '<div class="tile tempty hslot-empty' + (canSwap ? ' swap' : '') + '" ' + (canSwap ? 'onclick="swapTile(' + i + ')"' : '') + '>' +
+          '<span>' + (i+1) + '</span></div>') +
+      '</div>';
+  }).join('');
+  document.getElementById('dec-btn').disabled = !myTurn || !!MP.held;
+  document.getElementById('hand-status').textContent = myTurn
+    ? (MP.held ? 'tap a slot to swap, or drop on a discard pile' : 'draw a tile first')
+    : 'wait for your turn';
+  const mb = document.getElementById('map-game-btn');
+  if (mb) mb.textContent = pinnedState ? ('📍 ' + pinnedState) : '🗺️';
+  document.getElementById('g-code').textContent = MP.offline ? 'vs Bots' : MP.code;
+}
+
+function showWin(winner) {
+  clearSave();
+  const isMe = winner.id === MP.myId;
+  document.getElementById('wname').textContent = isMe ? '🎉 YOU WON!' : winner.name + ' Won!';
+  document.getElementById('wjrn').innerHTML = winner.hand.map(t => rt(t, { sm:true })).join('');
+  show('s-end');
+}
+
+function goNext() {
+  const n = document.getElementById('name-in').value.trim();
+  if (!n) { toast('Enter your name first'); return; }
+  MP.myName = n;
+  document.getElementById('greet').textContent = n;
+  show('s-cj');
+}
+
+let _botCount = 2;
+function adjBots(delta) {
+  _botCount = Math.max(1, Math.min(3, _botCount + delta));
+  document.getElementById('bot-n').textContent = _botCount;
+}
+
+function playVsBots() {
+  const n = document.getElementById('name-in').value.trim() || MP.myName;
+  if (!n) { toast('Enter your name first'); show('s-intro'); return; }
+  MP.myName = n; MP.isHost = true; MP.offline = true;
+  MP.myId = '__local__'; MP.code = 'BOTS';
+  MP.HOST.players = [{
+    id:'__local__', name:MP.myName, connected:true, bot:false,
+    setupDone:false, setupIdx:0, hand:Array(10).fill(null), pending:null
+  }];
+  for (let i = 0; i < _botCount; i++) {
+    MP.HOST.players.push({
+      id:'__bot_' + i, name:BOT_NAMES[i], connected:true, bot:true,
+      setupDone:false, setupIdx:0, hand:Array(10).fill(null), pending:null
+    });
+  }
+  MP.players = publicPlayers();
+  hostStartGame_impl();
+}
+
+const FIPS = {
+  '01':'AL','02':'AK','04':'AZ','05':'AR','06':'CA','08':'CO','09':'CT','10':'DE','12':'FL',
+  '13':'GA','15':'HI','16':'ID','17':'IL','18':'IN','19':'IA','20':'KS','21':'KY','22':'LA','23':'ME',
+  '24':'MD','25':'MA','26':'MI','27':'MN','28':'MS','29':'MO','30':'MT','31':'NE','32':'NV','33':'NH',
+  '34':'NJ','35':'NM','36':'NY','37':'NC','38':'ND','39':'OH','40':'OK','41':'OR','42':'PA','44':'RI',
+  '45':'SC','46':'SD','47':'TN','48':'TX','49':'UT','50':'VT','51':'VA','53':'WA','54':'WV','55':'WI','56':'WY'
+};
+let topoCache = null, mapBuilt = false, mapSvgSel = null, mapFeats = null, mapPathFn = null;
+const PANEL = ['ME','VT','NH','MA','RI','CT','NY','PA','NJ','DE','MD'];
+
+async function openMap(hlId, hlName) {
+  if (hlId) { pinnedState = hlId; updateHlBanner(hlId, hlName); }
+  document.getElementById('map-ov').classList.remove('hidden');
+  if (!mapBuilt) { await buildMap(); mapBuilt = true; }
+  highlightState(pinnedState);
+}
+function closeMap() {
+  document.getElementById('map-ov').classList.add('hidden');
+  if (!pinnedState) updateHlBanner(null);
+}
+
+function openHelp() { document.getElementById('help-ov').classList.remove('hidden'); }
+function closeHelp() { document.getElementById('help-ov').classList.add('hidden'); }
+
+function maybeShowFirstRunHelp() {
+  try {
+    if (!localStorage.getItem('10days_seen_help')) {
+      localStorage.setItem('10days_seen_help', '1');
+      setTimeout(openHelp, 600);
+    }
+  } catch(e) {}
+}
+
+function openSetupMap() {
+  const tile = MP.setupPending;
+  if (tile && tile.t === 'state') openMap(tile.id, tile.name);
+  else openMap();
+}
+function openGameMap() {
+  if (pinnedState) openMap(pinnedState, SN[pinnedState]);
+  else openMap();
+}
+
+function updateHlBanner(id, name) {
+  const titleEl = document.getElementById('map-ov-title');
+  const subEl   = document.getElementById('map-ov-sub');
+  if (!titleEl) return;
+  if (!id) {
+    titleEl.textContent = '🗺️ USA Color Map';
+    if (subEl) subEl.textContent = '';
+    return;
+  }
+  const hex = C_HEX[SC[id]] || '#888';
+  const neighborNames = (BOR[id] || []).map(n => SN[n] || n).join(' · ');
+  titleEl.innerHTML = '📍 ' + (name || id) +
+    ' <span class="title-chip" style="background:' + hex + '"></span>';
+  if (subEl) subEl.textContent = neighborNames ? 'borders: ' + neighborNames : '';
+}
+
+function highlightState(id) {
+  if (!mapSvgSel) return;
+  const neighbors = new Set(BOR[id] || []);
+  mapSvgSel.selectAll('path.sp')
+    .attr('stroke', '#0b1120').attr('stroke-width', '0.8')
+    .attr('opacity', id ? d => {
+      const ab = FIPS[String(d.id).padStart(2, '0')];
+      return (ab === id || neighbors.has(ab)) ? '1' : '0.5';
+    } : '1');
+  mapSvgSel.selectAll('path.sp')
+    .filter(d => neighbors.has(FIPS[String(d.id).padStart(2, '0')]))
+    .attr('stroke', '#94a3b8').attr('stroke-width', '2');
+  mapSvgSel.selectAll('path.sp')
+    .filter(d => FIPS[String(d.id).padStart(2, '0')] === id)
+    .attr('stroke', '#f59e0b').attr('stroke-width', '3').raise();
+
+  document.querySelectorAll('.ne-pill.selected').forEach(p => p.classList.remove('selected'));
+  mapSvgSel.selectAll('.panel-dot')
+    .attr('r', '3.5').attr('stroke', '#1e293b').attr('stroke-width', '0.8');
+
+  mapSvgSel.select('#hl-m').remove();
+  // Remove any previously-drawn neighbor labels
+  mapSvgSel.selectAll('.neighbor-lbl').remove();
+
+  if (id) {
+    const pill = document.querySelector('.ne-pill[data-ab="' + id + '"]');
+    if (pill) {
+      pill.classList.add('selected');
+      pill.scrollIntoView({ block:'nearest', behavior:'smooth' });
+    }
+    mapSvgSel.select('.pd-' + id)
+      .attr('r', '5').attr('stroke', '#f59e0b').attr('stroke-width', '2');
+
+    if (!PANEL.includes(id) && mapFeats && mapPathFn) {
+      const feat = mapFeats.find(f => FIPS[String(f.id).padStart(2, '0')] === id);
+      if (feat) {
+        const [cx, cy] = mapPathFn.centroid(feat);
+        if (!isNaN(cx)) {
+          const g = mapSvgSel.append('g').attr('id', 'hl-m');
+          g.append('circle').attr('cx', cx).attr('cy', cy).attr('r', 13)
+            .attr('fill', 'none').attr('stroke', '#f59e0b').attr('stroke-width', '2').attr('opacity', '0.5')
+            .style('animation', 'pulse-stroke 1.2s ease-in-out infinite');
+          g.append('circle').attr('cx', cx).attr('cy', cy).attr('r', 5)
+            .attr('fill', '#f59e0b').attr('stroke', '#0b1120').attr('stroke-width', '1.5');
+          const wrap = document.querySelector('.map-scroll');
+          const svgEl = mapSvgSel.node();
+          if (wrap && svgEl) {
+            const sc = svgEl.getBoundingClientRect().width / 975;
+            wrap.scrollTo({ left: Math.max(0, cx * sc - wrap.offsetWidth / 2),
+                            top: 0, behavior: 'smooth' });
+          }
+        }
+      }
+    }
+
+    // Draw neighbor-name labels over each bordering state
+    if (mapFeats && mapPathFn) {
+      (BOR[id] || []).forEach(nAb => {
+        const nFeat = mapFeats.find(f => FIPS[String(f.id).padStart(2, '0')] === nAb);
+        if (!nFeat) return;
+        const [nx, ny] = mapPathFn.centroid(nFeat);
+        if (isNaN(nx)) return;
+        const g = mapSvgSel.append('g').attr('class', 'neighbor-lbl').attr('pointer-events', 'none');
+        // Rounded label background
+        const txt = SN[nAb] || nAb;
+        const w = Math.max(48, txt.length * 5.5 + 12);
+        g.append('rect')
+          .attr('x', nx - w/2).attr('y', ny - 11)
+          .attr('width', w).attr('height', 22)
+          .attr('rx', 11).attr('ry', 11)
+          .attr('fill', '#0b1120').attr('stroke', '#f59e0b').attr('stroke-width', '1.5')
+          .attr('opacity', 0.95);
+        g.append('text').attr('x', nx).attr('y', ny + 4)
+          .attr('text-anchor', 'middle')
+          .attr('font-family', 'DM Sans, system-ui, sans-serif')
+          .attr('font-size', '11').attr('font-weight', '700')
+          .attr('fill', '#fff')
+          .text(txt);
+      });
+    }
+  }
+}
+
+async function buildMap() {
+  const wrap = document.getElementById('map-wrap');
+  try {
+    if (!topoCache)
+      topoCache = await fetch('https://cdn.jsdelivr.net/npm/us-atlas@3/states-10m.json').then(r => r.json());
+    wrap.innerHTML = '';
+
+    const svg = d3.create('svg').attr('viewBox', '0 0 975 610')
+      .style('width', '100%').style('min-width', '500px').style('height', 'auto').style('display', 'block');
+    const proj = d3.geoAlbersUsa().scale(1300).translate([487.5, 308]);
+    const pathFn = d3.geoPath().projection(proj);
+    const feats = topojson.feature(topoCache, topoCache.objects.states).features;
+    mapFeats = feats; mapPathFn = pathFn;
+
+    svg.selectAll('path.sp').data(feats).enter().append('path').attr('class', 'sp')
+      .attr('d', pathFn)
+      .attr('fill', d => { const ab = FIPS[String(d.id).padStart(2,'0')]; return C_HEX[SC[ab]||'wht']||'#334155'; })
+      .attr('stroke', '#fff').attr('stroke-width', '0.8')
+      .style('cursor', 'pointer')
+      .on('click', (event, d) => {
+        const ab = FIPS[String(d.id).padStart(2,'0')];
+        if (ab) togglePin(ab, SN[ab]);
+      });
+
+    svg.append('path')
+      .datum(topojson.mesh(topoCache, topoCache.objects.states, (a,b) => a !== b))
+      .attr('fill','none').attr('stroke','#1e293b').attr('stroke-width','1.8')
+      .attr('d', pathFn).style('pointer-events','none');
+
+    PANEL.forEach(ab => {
+      const feat = feats.find(f => FIPS[String(f.id).padStart(2,'0')] === ab);
+      if (!feat) return;
+      const c = pathFn.centroid(feat);
+      if (!c || isNaN(c[0])) return;
+      svg.append('circle')
+        .attr('cx', c[0]).attr('cy', c[1]).attr('r', 3.5)
+        .attr('class', 'panel-dot pd-' + ab)
+        .attr('fill', C_HEX[SC[ab] || 'wht'])
+        .attr('stroke', '#1e293b').attr('stroke-width', '0.8')
+        .style('cursor', 'pointer')
+        .on('click', () => togglePin(ab, SN[ab]));
+    });
+
+    const PANEL_SET = new Set(PANEL);
+    feats.forEach(f => {
+      const ab = FIPS[String(f.id).padStart(2,'0')];
+      if (!ab || PANEL_SET.has(ab)) return;
+      const c = pathFn.centroid(f);
+      if (!c || isNaN(c[0])) return;
+      const col     = SC[ab] || 'wht';
+      const isDark  = !C_DARK.has(col);
+      const textCol = isDark ? '#ffffff' : '#0f172a';
+      const halo    = isDark ? 'rgba(0,0,0,0.75)' : 'rgba(255,255,255,0.85)';
+      const g = svg.append('g').attr('pointer-events','none');
+      function haloText(x, y, text, size, weight, opacity) {
+        const base = { 'text-anchor':'middle', 'dominant-baseline':'middle',
+          'font-family':'DM Sans,system-ui,sans-serif',
+          'font-size': size, 'font-weight': weight };
+        const h = g.append('text').attr('x',x).attr('y',y).attr('opacity', opacity||1);
+        Object.entries(base).forEach(([k,v]) => h.attr(k,v));
+        h.attr('fill', halo).attr('stroke', halo).attr('stroke-width','3')
+          .style('paint-order','stroke fill').text(text);
+        const t = g.append('text').attr('x',x).attr('y',y).attr('opacity', opacity||1);
+        Object.entries(base).forEach(([k,v]) => t.attr(k,v));
+        t.attr('fill', textCol).text(text);
+      }
+      haloText(c[0], c[1] - 7,  ab,         '15', '900', 1);
+      haloText(c[0], c[1] + 10, SN[ab]||ab, '10', '500', 0.92);
+    });
+
+    wrap.appendChild(svg.node());
+    mapSvgSel = d3.select(svg.node());
+    buildPanel();
+
+  } catch(e) {
+    wrap.innerHTML = '<div class="map-error">Map failed: ' + e.message + '</div>';
+  }
+}
+
+function buildPanel() {
+  const container = document.getElementById('ne-panel-html');
+  if (!container) return;
+  container.innerHTML =
+    '<div class="ne-ptitle">NORTHEAST</div>' +
+    '<div class="ne-panel-pills" id="ne-panel-pills"></div>';
+  const pills = document.getElementById('ne-panel-pills');
+  PANEL.forEach(ab => {
+    const hex = C_HEX[SC[ab] || 'wht'], txt = C_TXT[SC[ab] || 'wht'];
+    const btn = document.createElement('button');
+    btn.className = 'ne-pill';
+    btn.dataset.ab = ab;
+    btn.setAttribute('aria-label', SN[ab] || ab);
+    btn.innerHTML =
+      '<span class="ne-pill-ab" style="background:' + hex + ';color:' + txt + '">' + ab + '</span>' +
+      '<span class="ne-pill-name">' + (SN[ab] || ab) + '</span>';
+    btn.addEventListener('click', () => togglePin(ab, SN[ab]));
+    pills.appendChild(btn);
+  });
+  container.addEventListener('scroll', () => {
+    const atBottom = container.scrollHeight - container.scrollTop <= container.clientHeight + 4;
+    container.classList.toggle('at-bottom', atBottom);
+  }, { passive:true });
+}
+
+const SAVE_KEY = '10days_save_v2';
+function saveState() {
+  if (MP.phase === 'lobby' || MP.phase === 'ended' || MP.offline) return;
+  try {
+    localStorage.setItem(SAVE_KEY, JSON.stringify({
+      myName:MP.myName, myId:MP.myId, isHost:MP.isHost, offline:MP.offline,
+      code:MP.code, phase:MP.phase, myHand:MP.myHand, players:MP.players,
+      discards:MP.discards, drawCount:MP.drawCount,
+      currentId:MP.currentId, currentName:MP.currentName,
+      HOST:MP.isHost ? MP.HOST : null, savedAt:Date.now()
+    }));
+  } catch(e) {}
+}
+function clearSave() { try { localStorage.removeItem(SAVE_KEY); } catch(e) {} }
+function loadSave() {
+  try {
+    const raw = localStorage.getItem(SAVE_KEY);
+    if (!raw) return null;
+    const data = JSON.parse(raw);
+    if (Date.now() - data.savedAt > 7200000) { clearSave(); return null; }
+    if (data.offline) { clearSave(); return null; }
+    return data;
+  } catch(e) { return null; }
+}
+function checkForSave() {
+  const saved = loadSave();
+  if (!saved) return false;
+  const banner = document.getElementById('resume-banner');
+  if (!banner) return false;
+  document.getElementById('resume-name').textContent = saved.myName;
+  document.getElementById('resume-room').textContent = saved.code;
+  document.getElementById('resume-phase').textContent =
+    saved.phase === 'setup' ? 'Setting up' : 'Playing — turn: ' + (saved.currentName || '?');
+  banner.classList.remove('hidden');
+  return true;
+}
+function resumeGame() {
+  const saved = loadSave();
+  if (!saved) { clearSave(); location.reload(); return; }
+  document.getElementById('resume-banner').classList.add('hidden');
+  Object.assign(MP, {
+    myName:saved.myName, isHost:saved.isHost, offline:false,
+    code:saved.code, myHand:saved.myHand || Array(10).fill(null),
+    players:saved.players || [], discards:saved.discards || [null,null,null],
+    drawCount:saved.drawCount || 0, currentId:saved.currentId,
+    currentName:saved.currentName, phase:saved.phase, held:null
+  });
+  if (MP.isHost && saved.HOST) {
+    MP.HOST = saved.HOST;
+    MP.HOST.players.forEach(p => { if (p.id !== MP.code) p.connected = false; });
+  }
+  document.getElementById('g-code').textContent = MP.code;
+  toast('Reconnecting…', 'info');
+  const peerId = MP.isHost ? MP.code : undefined;
+  peer = new Peer(peerId, { debug:0 });
+  peer.on('open', id => {
+    MP.myId = id;
+    if (MP.isHost) {
+      peer.on('connection', conn => {
+        conn.on('open', () => {
+          guestConns[conn.peer] = conn;
+          conn.on('data', msg => hostReceive(conn.peer, msg));
+          conn.on('close', () => hostGuestDisconnect(conn.peer));
+          const p = MP.HOST.players.find(x => x.id === conn.peer);
+          if (p) { p.connected = true; hostSendSync(conn.peer); }
+          hostBroadcastState();
+          MP.players = publicPlayers();
+        });
+      });
+      if (MP.phase === 'setup') startSetupScreen();
+      else if (MP.phase === 'playing') { show('s-game'); renderGame(); }
+      toast('Room ' + MP.code + ' restored — waiting for others to rejoin…', 'ok');
+    } else {
+      hostConn = peer.connect(MP.code, { reliable:true });
+      hostConn.on('open', () => hostConn.send({ type:'req_sync' }));
+      hostConn.on('data', msg => guestReceive(msg));
+      hostConn.on('close', () => toast('Host disconnected'));
+      if (MP.phase === 'setup') startSetupScreen();
+      else if (MP.phase === 'playing') { show('s-game'); renderGame(); }
+      toast('Reconnected! Syncing…', 'ok');
+    }
+  });
+  peer.on('error', e => { toast('Reconnect failed: ' + e.type); clearSave(); show('s-intro'); });
+}
+function discardSave() {
+  clearSave();
+  document.getElementById('resume-banner').classList.add('hidden');
+}
+
+document.addEventListener('keydown', e => {
+  const act = document.querySelector('.screen.active')?.id;
+  if (e.key === 'Enter') {
+    if (act === 's-intro') goNext();
+    else if (act === 's-cj') joinRoom();
+  }
+  if (e.key === 'Escape') {
+    closeDC();
+    closeMap();
+    closeHelp();
+  }
+});
+
+window.addEventListener('load', () => {
+  checkForSave();
+  (function() {
+    const mapTop = document.querySelector('.map-top');
+    if (!mapTop) return;
+    let sy = 0;
+    mapTop.addEventListener('touchstart', e => { sy = e.touches[0].clientY; }, { passive: true });
+    mapTop.addEventListener('touchend', e => {
+      if (e.changedTouches[0].clientY - sy > 50) closeMap();
+    });
+  })();
+  (function() {
+    const helpOv = document.getElementById('help-ov');
+    if (!helpOv) return;
+    let sy = 0;
+    helpOv.addEventListener('touchstart', e => { sy = e.touches[0].clientY; }, { passive: true });
+    helpOv.addEventListener('touchend', e => {
+      const dy = e.changedTouches[0].clientY - sy;
+      if (dy > 70 && sy < window.innerHeight * 0.45) closeHelp();
+    });
+  })();
+});
+window.addEventListener('beforeunload', () => { saveState(); });
+</script>
+</body>
+</html>
