@@ -1,0 +1,798 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>לוח שליטה לטיול</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Assistant:wght@400;500;600;700&family=Heebo:wght@500;700;800&family=Roboto+Mono:wght@500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#E7ECEE;
+    --surface:#FFFFFF;
+    --surface-2:#F5F7F7;
+    --ink:#0F2E37;
+    --ink-soft:#516068;
+    --ink-faint:#869298;
+    --teal:#16707A;
+    --teal-deep:#0E4A52;
+    --gold:#C98A1E;
+    --ok:#2C8265;
+    --ok-bg:#E2F0EA;
+    --warn:#C77C18;
+    --warn-bg:#F7ECD8;
+    --alert:#B83F36;
+    --alert-bg:#F6E1DE;
+    --line:#D5DDDF;
+    --line-soft:#E6EBEC;
+    --shadow:0 1px 2px rgba(15,46,55,.06),0 8px 24px rgba(15,46,55,.07);
+    --shadow-lift:0 4px 10px rgba(15,46,55,.10),0 18px 40px rgba(15,46,55,.12);
+    font-family:'Assistant',-apple-system,'Segoe UI',Arial,sans-serif;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{background:var(--bg);color:var(--ink)}
+  body{padding:clamp(12px,3vw,32px);min-height:100vh;-webkit-font-smoothing:antialiased}
+  .wrap{max-width:880px;margin:0 auto}
+  button{font-family:inherit;cursor:pointer;border:none;background:none;color:inherit}
+  input,select{font-family:inherit;color:inherit}
+  ::selection{background:#16707A33}
+
+  /* ---------- HEADER ---------- */
+  .top{display:flex;flex-wrap:wrap;align-items:flex-end;gap:14px;justify-content:space-between;margin-bottom:18px}
+  .top h1{font-family:'Heebo';font-weight:800;font-size:clamp(22px,4.5vw,30px);letter-spacing:-.02em;line-height:1.1}
+  .title-edit{font-family:'Heebo';font-weight:800;font-size:clamp(22px,4.5vw,30px);letter-spacing:-.02em;color:var(--ink);
+    background:transparent;border:none;border-bottom:2px dashed transparent;width:100%;padding:2px 0;border-radius:2px}
+  .title-edit:hover{border-bottom-color:var(--line)}
+  .title-edit:focus{outline:none;border-bottom-color:var(--teal)}
+  .eyebrow{font-family:'Heebo';font-weight:700;font-size:11px;letter-spacing:.16em;color:var(--teal);text-transform:uppercase;margin-bottom:4px}
+  .span{font-size:13.5px;color:var(--ink-soft);margin-top:5px;font-weight:500}
+  .span b{color:var(--ink);font-weight:600}
+
+  /* ---------- SYNC / SHARE BAR ---------- */
+  .syncbar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;background:var(--surface);border:1px solid var(--line-soft);
+    border-radius:12px;padding:9px 12px;margin-bottom:14px;box-shadow:var(--shadow);font-size:13px}
+  .syncbar .sdot{width:8px;height:8px;border-radius:50%;background:var(--ink-faint);flex:0 0 auto}
+  .syncbar.sb-live .sdot{background:var(--ok)}
+  .syncbar.sb-offline .sdot{background:var(--alert)}
+  .syncbar.sb-connecting .sdot{background:var(--warn);animation:pulse 1.1s infinite}
+  @keyframes pulse{0%,100%{opacity:1}50%{opacity:.35}}
+  .syncbar .stxt{color:var(--ink-soft);font-weight:600;flex:1 1 auto}
+  .syncbar button{font-size:12.5px;font-weight:700;color:var(--teal);padding:5px 10px;border-radius:8px}
+  .syncbar button:hover{background:var(--surface-2)}
+
+  /* ---------- VIEW SWITCH ---------- */
+  .viewsw{display:inline-flex;background:var(--surface-2);border:1px solid var(--line-soft);border-radius:11px;padding:3px;gap:2px}
+  .viewsw button{font-size:13px;font-weight:700;color:var(--ink-soft);padding:7px 14px;border-radius:8px}
+  .viewsw button.on{background:var(--surface);color:var(--ink);box-shadow:var(--shadow)}
+
+  /* ---------- READINESS PANEL ---------- */
+  .panel{background:var(--surface);border-radius:16px;box-shadow:var(--shadow);padding:18px 18px 16px;margin-bottom:22px;border:1px solid var(--line-soft)}
+  .ready-head{display:flex;align-items:baseline;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:12px}
+  .ready-stat{display:flex;align-items:baseline;gap:8px}
+  .ready-stat .big{font-family:'Heebo';font-weight:800;font-size:30px;line-height:1;color:var(--ink);letter-spacing:-.02em}
+  .ready-stat .lab{font-size:13px;color:var(--ink-soft);font-weight:600}
+  .ready-pct{font-family:'Roboto Mono';font-size:13px;color:var(--ink-soft);font-weight:500}
+
+  /* coverage strip — the signature element */
+  .strip{display:flex;height:18px;border-radius:6px;overflow:hidden;background:var(--surface-2);border:1px solid var(--line-soft);margin-bottom:6px}
+  .strip .seg{flex:1 1 0;position:relative;border-inline-start:1px solid #ffffff99}
+  .strip .seg:first-child{border-inline-start:none}
+  .seg.s-ok{background:var(--ok)}
+  .seg.s-part{background:var(--warn)}
+  .seg.s-none{background:#C9D2D4}
+  .seg.s-gap{background:repeating-linear-gradient(45deg,var(--alert),var(--alert) 5px,#cf554c 5px,#cf554c 10px)}
+  .strip-legend{display:flex;gap:14px;flex-wrap:wrap;font-size:11.5px;color:var(--ink-soft);font-weight:500;margin-top:8px}
+  .strip-legend span{display:inline-flex;align-items:center;gap:5px}
+  .dot{width:10px;height:10px;border-radius:3px;display:inline-block}
+  .d-ok{background:var(--ok)}.d-part{background:var(--warn)}.d-none{background:#C9D2D4}
+  .d-gap{background:repeating-linear-gradient(45deg,var(--alert),var(--alert) 3px,#cf554c 3px,#cf554c 6px)}
+
+  /* alerts list */
+  .alerts{margin-top:14px;display:flex;flex-direction:column;gap:7px}
+  .alert-row{display:flex;align-items:flex-start;gap:9px;font-size:13.5px;font-weight:500;padding:9px 11px;border-radius:10px;line-height:1.35}
+  .alert-row.a-red{background:var(--alert-bg);color:#8c2f27}
+  .alert-row.a-amber{background:var(--warn-bg);color:#8a5710}
+  .alert-row.a-green{background:var(--ok-bg);color:#1f6049}
+  .alert-row .ic{flex:0 0 auto;font-size:14px;line-height:1.3}
+
+  /* ---------- TIMELINE ---------- */
+  .leg{position:relative;padding-inline-end:34px;margin-bottom:4px}
+  .spine{position:absolute;inset-inline-end:13px;top:0;bottom:0;width:2px;background:var(--line)}
+  .leg:last-child .spine{display:none}
+  .node{position:absolute;inset-inline-end:5px;top:26px;width:18px;height:18px;border-radius:50%;background:var(--surface);
+    border:3px solid var(--teal);z-index:2;box-shadow:0 0 0 4px var(--bg)}
+  .node.n-done{background:var(--teal);border-color:var(--teal)}
+  .node.n-gap{border-color:var(--alert)}
+
+  .hop{display:flex;align-items:center;gap:7px;font-size:12px;color:var(--ink-faint);font-weight:600;
+    padding:7px 0 7px 2px;margin-inline-end:34px}
+  .hop .pl{font-size:13px;opacity:.6}
+
+  .card{background:var(--surface);border:1px solid var(--line-soft);border-radius:14px;box-shadow:var(--shadow);
+    padding:15px 16px 14px;transition:box-shadow .18s ease}
+  .card:hover{box-shadow:var(--shadow-lift)}
+  .card.c-gap{border-color:#e9c5c1}
+
+  .card-head{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;margin-bottom:3px}
+  .place-in{font-family:'Heebo';font-weight:700;font-size:19px;color:var(--ink);background:transparent;border:none;
+    border-bottom:2px dashed transparent;border-radius:2px;width:100%;padding:1px 0;letter-spacing:-.01em}
+  .place-in:hover{border-bottom-color:var(--line)}
+  .place-in:focus{outline:none;border-bottom-color:var(--teal)}
+  .place-in::placeholder{color:var(--ink-faint);font-weight:600}
+
+  .leg-tools{display:flex;gap:2px;flex:0 0 auto}
+  .icon-btn{width:30px;height:30px;border-radius:8px;color:var(--ink-faint);font-size:15px;display:grid;place-items:center;
+    transition:background .15s,color .15s}
+  .icon-btn:hover{background:var(--surface-2);color:var(--ink)}
+  .icon-btn.danger:hover{background:var(--alert-bg);color:var(--alert)}
+  .icon-btn:disabled{opacity:.25;cursor:default}
+
+  .dates{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:8px 0 4px}
+  .date-field{display:flex;align-items:center;gap:6px}
+  .date-field label{font-size:11.5px;font-weight:700;color:var(--ink-faint);letter-spacing:.02em}
+  input[type=date]{font-size:13px;font-weight:600;color:var(--ink);background:var(--surface-2);border:1px solid var(--line);
+    border-radius:8px;padding:5px 8px;font-family:'Roboto Mono','Assistant',monospace}
+  input[type=date]:focus{outline:none;border-color:var(--teal);box-shadow:0 0 0 3px #16707a22}
+  .nights{font-size:12.5px;font-weight:600;color:var(--ink-soft);background:var(--surface-2);
+    padding:4px 9px;border-radius:20px;border:1px solid var(--line-soft)}
+  .nights.bad{background:var(--alert-bg);color:#8c2f27;border-color:#e9c5c1}
+
+  /* booking rows */
+  .bookings{display:flex;flex-direction:column;gap:7px;margin-top:11px}
+  .brow{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:8px 4px;border-radius:9px}
+  .brow .bicon{width:30px;height:30px;border-radius:9px;display:grid;place-items:center;font-size:15px;flex:0 0 auto;
+    background:var(--surface-2);border:1px solid var(--line-soft)}
+  .brow .blab{font-weight:700;font-size:14px;min-width:46px;flex:0 0 auto}
+  .binfo{flex:1 1 130px;min-width:110px;font-size:13px;font-weight:500;color:var(--ink-soft);background:transparent;
+    border:none;border-bottom:1px solid transparent;padding:3px 2px;border-radius:2px}
+  .binfo:hover{border-bottom-color:var(--line)}
+  .binfo:focus{outline:none;border-bottom-color:var(--teal);color:var(--ink)}
+  .binfo::placeholder{color:var(--ink-faint);font-weight:500}
+  .binfo.code{font-family:'Roboto Mono';font-size:12px;letter-spacing:.02em}
+
+  .status{flex:0 0 auto;font-weight:700;font-size:12.5px;padding:5px 12px;border-radius:20px;display:inline-flex;
+    align-items:center;gap:6px;transition:transform .12s ease,background .15s}
+  .status:active{transform:scale(.95)}
+  .status::before{content:"";width:7px;height:7px;border-radius:50%;background:currentColor;opacity:.85}
+  .st-none{background:var(--alert-bg);color:#a8362e}
+  .st-booked{background:var(--warn-bg);color:#9a6312}
+  .st-confirmed{background:var(--ok-bg);color:#216a51}
+  .st-na{background:var(--surface-2);color:var(--ink-faint);border:1px solid var(--line-soft)}
+  .st-na::before{opacity:.5}
+
+  /* needs checklist */
+  .needs{margin-top:13px;border-top:1px dashed var(--line);padding-top:11px}
+  .needs-h{font-size:11.5px;font-weight:700;letter-spacing:.08em;color:var(--ink-faint);text-transform:uppercase;margin-bottom:8px;display:flex;align-items:center;gap:6px}
+  .need{display:flex;align-items:center;gap:9px;padding:3px 0}
+  .need .chk{width:19px;height:19px;border-radius:6px;border:2px solid var(--line);flex:0 0 auto;display:grid;place-items:center;
+    font-size:11px;color:#fff;transition:.15s}
+  .need .chk.on{background:var(--teal);border-color:var(--teal)}
+  .need-txt{flex:1 1 auto;font-size:14px;font-weight:500;background:transparent;border:none;padding:2px 2px;border-radius:3px;
+    border-bottom:1px solid transparent}
+  .need-txt:hover{border-bottom-color:var(--line-soft)}
+  .need-txt:focus{outline:none;border-bottom-color:var(--teal)}
+  .need.done .need-txt{color:var(--ink-faint);text-decoration:line-through}
+  .need .rm{color:var(--ink-faint);font-size:15px;width:24px;height:24px;border-radius:6px;display:grid;place-items:center;opacity:0;transition:.15s}
+  .need:hover .rm{opacity:1}
+  .need .rm:hover{background:var(--alert-bg);color:var(--alert)}
+  .add-need{font-size:13px;font-weight:600;color:var(--teal);padding:6px 4px;display:inline-flex;align-items:center;gap:6px;border-radius:7px}
+  .add-need:hover{background:var(--surface-2)}
+
+  /* add stop / actions */
+  .add-leg{width:100%;margin-top:8px;background:var(--surface);border:2px dashed var(--line);border-radius:14px;
+    padding:15px;font-weight:700;font-size:15px;color:var(--teal);display:flex;align-items:center;justify-content:center;gap:9px;
+    transition:.16s}
+  .add-leg:hover{border-color:var(--teal);background:#16707a08}
+
+  .foot{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin-top:24px;
+    padding-top:16px;border-top:1px solid var(--line);font-size:12.5px;color:var(--ink-faint)}
+  .foot button{font-size:12.5px;font-weight:600;color:var(--ink-soft);padding:6px 12px;border-radius:8px;border:1px solid var(--line)}
+  .foot button:hover{background:var(--surface);color:var(--ink)}
+  .save-state{display:inline-flex;align-items:center;gap:6px;font-weight:500}
+  .save-state .sd{width:7px;height:7px;border-radius:50%;background:var(--ok);transition:opacity .3s}
+
+  /* empty state */
+  .empty{background:var(--surface);border-radius:18px;box-shadow:var(--shadow);padding:40px 28px;text-align:center;border:1px solid var(--line-soft)}
+  .empty .em-ic{font-size:40px;margin-bottom:6px}
+  .empty h2{font-family:'Heebo';font-weight:800;font-size:22px;margin-bottom:8px;letter-spacing:-.01em}
+  .empty p{color:var(--ink-soft);font-size:14.5px;max-width:380px;margin:0 auto 22px;line-height:1.5}
+  .empty .row{display:flex;gap:10px;justify-content:center;flex-wrap:wrap}
+  .btn-primary{background:var(--teal);color:#fff;font-weight:700;font-size:15px;padding:12px 22px;border-radius:11px;box-shadow:0 6px 14px #16707a33;transition:.16s}
+  .btn-primary:hover{background:var(--teal-deep);box-shadow:0 8px 18px #16707a44}
+  .btn-ghost{background:var(--surface-2);color:var(--ink);font-weight:600;font-size:15px;padding:12px 20px;border-radius:11px;border:1px solid var(--line)}
+  .btn-ghost:hover{background:#eceff0}
+
+  .hint{font-size:11.5px;color:var(--ink-faint);margin-top:14px;line-height:1.5}
+
+  /* ---------- CALENDAR VIEW ---------- */
+  .cal-month{background:var(--surface);border:1px solid var(--line-soft);border-radius:16px;box-shadow:var(--shadow);
+    padding:16px 14px;margin-bottom:18px}
+  .cal-month-h{font-family:'Heebo';font-weight:800;font-size:16px;margin-bottom:10px;text-align:center;letter-spacing:-.01em}
+  .cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:5px}
+  .cal-dow{font-size:11px;font-weight:700;color:var(--ink-faint);text-align:center;padding-bottom:4px}
+  .cal-cell{min-height:64px;border-radius:9px;background:var(--surface-2);border:1px solid var(--line-soft);
+    padding:5px 5px 6px;display:flex;flex-direction:column;gap:3px;position:relative}
+  .cal-cell.empty{background:transparent;border-color:transparent}
+  .cal-cell .dnum{font-size:11px;font-weight:700;color:var(--ink-faint);align-self:flex-end}
+  .cal-cell.is-gap{background:repeating-linear-gradient(45deg,#f6e1de,#f6e1de 6px,#f1d2cd 6px,#f1d2cd 12px);border-color:#e9c5c1}
+  .cal-chip{font-size:10.5px;font-weight:700;border-radius:5px;padding:2px 5px;line-height:1.25;color:#fff;
+    overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .cal-chip.cc-ok{background:var(--ok)}
+  .cal-chip.cc-part{background:var(--warn)}
+  .cal-chip.cc-none{background:#9aa6aa}
+  .cal-legend{display:flex;gap:14px;flex-wrap:wrap;font-size:11.5px;color:var(--ink-soft);font-weight:500;margin-bottom:14px}
+  .cal-legend span{display:inline-flex;align-items:center;gap:5px}
+
+  @media(max-width:560px){
+    .brow{gap:7px}
+    .brow .blab{min-width:0}
+    .binfo{flex-basis:100%;order:5}
+    .cal-cell{min-height:50px;padding:3px 3px 4px}
+    .cal-chip{font-size:9px}
+  }
+  @media (prefers-reduced-motion: reduce){*{transition:none!important}}
+</style>
+</head>
+<body>
+<div class="wrap" id="app"></div>
+
+<!-- Firebase (cloud sync) -->
+<script type="module">
+import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js';
+import {
+  getFirestore, doc, setDoc, onSnapshot
+} from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js';
+
+// TODO: paste your Firebase project's config here (Firebase console → Project settings → Web app)
+const firebaseConfig = {
+  apiKey: "REPLACE_ME",
+  authDomain: "REPLACE_ME",
+  projectId: "REPLACE_ME",
+  storageBucket: "REPLACE_ME",
+  messagingSenderId: "REPLACE_ME",
+  appId: "REPLACE_ME"
+};
+
+window.__cloud = { ready:false };
+
+try{
+  const app = initializeApp(firebaseConfig);
+  const db = getFirestore(app);
+  window.__cloud = {
+    ready:true,
+    docRef: (tripId)=>doc(db,'trips',tripId),
+    setDoc,
+    onSnapshot
+  };
+}catch(e){
+  console.warn('Firebase not configured yet — running in local-only mode.', e);
+}
+</script>
+
+<script>
+const KEY='trip-control:v1';
+const STATUS_CYCLE=['none','booked','confirmed'];
+const STATUS_CYCLE_CAR=['na','none','booked','confirmed'];
+const STATUS_LABEL={na:'לא צריך',none:'חסר',booked:'הוזמן',confirmed:'מאושר'};
+const STATUS_CLASS={na:'st-na',none:'st-none',booked:'st-booked',confirmed:'st-confirmed'};
+const DOW=['א','ב','ג','ד','ה','ו','ש'];
+const MONTH_NAMES=['ינואר','פברואר','מרץ','אפריל','מאי','יוני','יולי','אוגוסט','ספטמבר','אוקטובר','נובמבר','דצמבר'];
+
+let state=null, saveTimer=null, view='timeline';
+let tripId=null, cloudUnsub=null, cloudStatus='offline', applyingRemote=false;
+
+/* ---------- trip id (shared link) ---------- */
+function getTripIdFromUrl(){
+  const u=new URL(location.href);
+  return u.searchParams.get('trip');
+}
+function setTripIdInUrl(id){
+  const u=new URL(location.href);
+  u.searchParams.set('trip',id);
+  history.replaceState(null,'',u.toString());
+}
+function newTripId(){return Math.random().toString(36).slice(2,8).toUpperCase();}
+
+/* ---------- persistence ---------- */
+async function load(){
+  tripId=getTripIdFromUrl();
+  // local cache first (fast paint + offline fallback)
+  try{
+    const raw=localStorage.getItem(localKey());
+    if(raw){state=JSON.parse(raw);}
+  }catch(e){/* no local cache yet */}
+  if(!state)state={title:'הטיול שלי',stops:[]};
+
+  if(!tripId){tripId=newTripId();setTripIdInUrl(tripId);}
+  connectCloud();
+}
+function localKey(){return tripId?`${KEY}:${tripId}`:KEY;}
+
+function connectCloud(){
+  if(!window.__cloud?.ready){cloudStatus='offline';return;}
+  cloudStatus='connecting';
+  const {docRef,onSnapshot}=window.__cloud;
+  if(cloudUnsub)cloudUnsub();
+  cloudUnsub=onSnapshot(docRef(tripId),snap=>{
+    cloudStatus='live';
+    if(snap.exists()){
+      const remote=snap.data();
+      if(remote&&remote.payload){
+        applyingRemote=true;
+        state=JSON.parse(remote.payload);
+        applyingRemote=false;
+        persistLocalOnly();
+        render();
+      }
+    }else{
+      // first device for this trip id — push current local state up
+      pushCloud();
+    }
+  },err=>{
+    console.warn('cloud sync error',err);
+    cloudStatus='offline';
+    renderSyncBar();
+  });
+}
+
+function persistLocalOnly(){
+  try{localStorage.setItem(localKey(),JSON.stringify(state));}catch(e){/* ignore */}
+}
+
+function scheduleSave(){
+  if(applyingRemote)return;
+  flashSaving();
+  clearTimeout(saveTimer);
+  saveTimer=setTimeout(async()=>{
+    persistLocalOnly();
+    await pushCloud();
+  },350);
+}
+async function pushCloud(){
+  if(!window.__cloud?.ready){flashSaved();return;}
+  try{
+    const {docRef,setDoc}=window.__cloud;
+    await setDoc(docRef(tripId),{payload:JSON.stringify(state),updatedAt:Date.now()});
+    flashSaved();
+  }catch(e){
+    console.warn('cloud save failed',e);
+    flashError();
+  }
+}
+function flashSaving(){const d=document.querySelector('.save-state');if(d)d.querySelector('.txt').textContent='שומר…';}
+function flashSaved(){const d=document.querySelector('.save-state');if(d){d.querySelector('.txt').textContent='נשמר';d.querySelector('.sd').style.background='var(--ok)';}}
+function flashError(){const d=document.querySelector('.save-state');if(d){d.querySelector('.txt').textContent='שמירה נכשלה';d.querySelector('.sd').style.background='var(--alert)';}}
+
+/* ---------- helpers ---------- */
+const uid=()=>Math.random().toString(36).slice(2,9);
+function parseD(s){if(!s)return null;const[y,m,d]=s.split('-').map(Number);return new Date(y,m-1,d);}
+function nightsBetween(a,b){const A=parseD(a),B=parseD(b);if(!A||!B)return null;return Math.round((B-A)/86400000);}
+function fmtDate(s){if(!s)return'—';const d=parseD(s);return d.toLocaleDateString('he-IL',{day:'numeric',month:'short'});}
+function fmtFull(s){if(!s)return'';const d=parseD(s);return d.toLocaleDateString('he-IL',{day:'numeric',month:'long',year:'numeric'});}
+function toISO(d){return`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;}
+
+function newStop(){return{id:uid(),place:'',arrive:'',depart:'',
+  flight:{status:'none',info:''},stay:{status:'none',info:''},car:{status:'na',info:''},needs:[]};}
+
+function sampleTrip(){
+  const mk=(place,arrive,depart,f,s,c,needs)=>({id:uid(),place,arrive,depart,
+    flight:f,stay:s,car:c,needs:needs.map(t=>({id:uid(),text:t,done:false}))});
+  return{title:'יוון – אוגוסט',stops:[
+    mk('אתונה','2026-08-04','2026-08-07',
+      {status:'confirmed',info:'A3 981 · TLV→ATH · 06:20'},
+      {status:'confirmed',info:'Coco-Mat · אישור #4821'},
+      {status:'na',info:''},
+      ['העברה משדה התעורה למלון','כרטיסים לאקרופוליס מראש']),
+    mk('נאפוליון','2026-08-07','2026-08-11',
+      {status:'booked',info:'רכבת / השכרת רכב מאתונה'},
+      {status:'none',info:''},
+      {status:'booked',info:'Hertz · איסוף אתונה'},
+      ['לבדוק חניה בעיר העתיקה','מסעדה בנמל']),
+    mk('סנטוריני','2026-08-11','2026-08-15',
+      {status:'none',info:'מעבורת מנאפוליון?'},
+      {status:'confirmed',info:'Oia view · אישור #7732'},
+      {status:'na',info:''},
+      ['להזמין שקיעה באויה','להחזיר רכב לפני המעבורת']),
+  ]};
+}
+
+/* ---------- status math ---------- */
+// returns {needed, booked, confirmed} counts of bookings that are actually required
+function stopReadiness(st){
+  let needed=0,covered=0; // covered = booked or confirmed
+  // flight always needed
+  needed++; if(st.flight.status==='booked'||st.flight.status==='confirmed')covered++;
+  // stay needed if at least one night
+  const n=nightsBetween(st.arrive,st.depart);
+  if(n===null||n>0){needed++; if(st.stay.status==='booked'||st.stay.status==='confirmed')covered++;}
+  // car needed only if not 'na'
+  if(st.car.status!=='na'){needed++; if(st.car.status==='booked'||st.car.status==='confirmed')covered++;}
+  return{needed,covered};
+}
+function stripClass(st){
+  const{needed,covered}=stopReadiness(st);
+  if(needed===0)return's-ok';
+  if(covered===0)return's-none';
+  if(covered<needed)return's-part';
+  return's-ok';
+}
+
+/* ---------- render ---------- */
+function render(){
+  const app=document.getElementById('app');
+  if(!state.stops.length){app.innerHTML=emptyHTML();bindEmpty();return;}
+
+  // global stats
+  let totalNeeded=0,totalCovered=0;
+  state.stops.forEach(s=>{const r=stopReadiness(s);totalNeeded+=r.needed;totalCovered+=r.covered;});
+  const pct=totalNeeded?Math.round(totalCovered/totalNeeded*100):100;
+
+  const first=state.stops.find(s=>s.arrive)?.arrive;
+  const last=[...state.stops].reverse().find(s=>s.depart)?.depart;
+
+  app.innerHTML=`
+    <div class="top">
+      <div style="flex:1 1 240px">
+        <div class="eyebrow">לוח שליטה לטיול</div>
+        <input class="title-edit" id="title" value="${esc(state.title)}" placeholder="שם הטיול">
+        <div class="span">${first&&last?`<b>${fmtFull(first)}</b> – <b>${fmtFull(last)}</b> · ${state.stops.length} תחנות`:`${state.stops.length} תחנות`}</div>
+      </div>
+    </div>
+
+    ${syncBarHTML()}
+
+    <div class="panel">
+      <div class="ready-head">
+        <div class="ready-stat"><span class="big">${totalCovered}/${totalNeeded}</span><span class="lab">הזמנות סגורות</span></div>
+        <div class="ready-pct">${pct}% מוכן</div>
+      </div>
+      <div class="strip">${state.stops.map(stripSeg).join('')}</div>
+      <div class="strip-legend">
+        <span><i class="dot d-ok"></i> סגור</span>
+        <span><i class="dot d-part"></i> חלקי</span>
+        <span><i class="dot d-none"></i> ריק</span>
+        <span><i class="dot d-gap"></i> לילה לא מכוסה</span>
+      </div>
+      ${alertsHTML()}
+    </div>
+
+    <div style="display:flex;justify-content:flex-start;margin-bottom:16px">
+      <div class="viewsw" id="viewsw">
+        <button data-view="timeline" class="${view==='timeline'?'on':''}">☰ ציר זמן</button>
+        <button data-view="calendar" class="${view==='calendar'?'on':''}">▦ לוח שנה</button>
+      </div>
+    </div>
+
+    ${view==='timeline'
+      ? `<div id="timeline">${state.stops.map((s,i)=>legHTML(s,i)).join('')}</div>
+         <button class="add-leg" id="addLeg">＋ הוספת תחנה</button>`
+      : calendarHTML()}
+
+    <div class="foot">
+      <span class="save-state"><i class="sd"></i><span class="txt">נשמר</span> · ${window.__cloud?.ready?'בענן + במכשיר':'אצלך במכשיר'}</span>
+      <button id="reset">איפוס הטיול</button>
+    </div>`;
+
+  bindMain();
+}
+
+function syncBarHTML(){
+  const cls=cloudStatus==='live'?'sb-live':cloudStatus==='connecting'?'sb-connecting':'sb-offline';
+  const txt=!window.__cloud?.ready
+    ? 'מצב מקומי בלבד — חברו Firebase כדי לשתף עם בן/בת הזוג'
+    : cloudStatus==='live' ? 'מסונכרן בענן — כל עדכון נשמר ומופיע אצל כולם'
+    : cloudStatus==='connecting' ? 'מתחבר לענן…'
+    : 'אין חיבור לענן — שינויים נשמרים רק במכשיר הזה';
+  return `<div class="syncbar ${cls}">
+    <i class="sdot"></i>
+    <span class="stxt">${txt}</span>
+    <button id="copyLink">🔗 קישור שיתוף</button>
+  </div>`;
+}
+function renderSyncBar(){
+  const el=document.querySelector('.syncbar');
+  if(!el)return;
+  el.outerHTML=syncBarHTML();
+  document.getElementById('copyLink').onclick=copyShareLink;
+}
+function copyShareLink(){
+  navigator.clipboard?.writeText(location.href).catch(()=>{});
+  const btn=document.getElementById('copyLink');
+  if(btn){const old=btn.textContent;btn.textContent='✓ הועתק';setTimeout(()=>btn.textContent=old,1400);}
+}
+
+function stripSeg(st){
+  const cls=stripClass(st);
+  return `<div class="seg ${cls}" title="${esc(st.place||'תחנה')}"></div>`;
+}
+
+function alertsHTML(){
+  const rows=[];
+  const stops=state.stops;
+  // date coverage gaps between consecutive stops
+  for(let i=0;i<stops.length-1;i++){
+    const a=stops[i],b=stops[i+1];
+    if(a.depart&&b.arrive){
+      const gap=nightsBetween(a.depart,b.arrive);
+      if(gap>0)rows.push(['a-red','◆',`${gap} ${gap===1?'לילה':'לילות'} בלי לינה בין ${a.place||'תחנה'} ל${b.place||'תחנה'} (${fmtDate(a.depart)}–${fmtDate(b.arrive)})`]);
+      else if(gap<0)rows.push(['a-red','◆',`חפיפת תאריכים בין ${a.place||'תחנה'} ל${b.place||'תחנה'} — היציאה אחרי ההגעה הבאה`]);
+    }
+  }
+  // missing flights / stays / cars
+  const missF=stops.filter(s=>s.flight.status==='none').map(s=>s.place||'תחנה');
+  const missS=stops.filter(s=>{const n=nightsBetween(s.arrive,s.depart);return(n===null||n>0)&&s.stay.status==='none';}).map(s=>s.place||'תחנה');
+  const missC=stops.filter(s=>s.car.status==='none').map(s=>s.place||'תחנה');
+  if(missF.length)rows.push(['a-amber','✈',`טיסה חסרה: ${missF.join(' · ')}`]);
+  if(missS.length)rows.push(['a-amber','⌂',`לינה חסרה: ${missS.join(' · ')}`]);
+  if(missC.length)rows.push(['a-amber','⛟',`רכב חסר: ${missC.join(' · ')}`]);
+  // missing dates
+  const noDates=stops.filter(s=>!s.arrive||!s.depart).map(s=>s.place||'תחנה');
+  if(noDates.length)rows.push(['a-amber','◷',`חסרים תאריכים: ${noDates.join(' · ')}`]);
+
+  if(!rows.length)return`<div class="alerts"><div class="alert-row a-green"><span class="ic">✓</span>הכול סגור — טיסות, לינה ורכב מוזמנים לכל התחנות, וכל הלילות מכוסים.</div></div>`;
+  return`<div class="alerts">${rows.map(([c,ic,t])=>`<div class="alert-row ${c}"><span class="ic">${ic}</span>${esc(t)}</div>`).join('')}</div>`;
+}
+
+function legHTML(st,i){
+  const n=nightsBetween(st.arrive,st.depart);
+  const{needed,covered}=stopReadiness(st);
+  const done=needed>0&&covered===needed;
+  // gap before this stop?
+  let gapBefore=false;
+  if(i>0){const prev=state.stops[i-1];if(prev.depart&&st.arrive){const g=nightsBetween(prev.depart,st.arrive);if(g!==0&&g!==null)gapBefore=true;}}
+  const nodeCls=gapBefore?'n-gap':(done?'n-done':'');
+
+  const hop=i===0
+    ? `<div class="hop"><span class="pl">⌂</span> יציאה מהבית · טיסה ל${esc(st.place||'תחנה הראשונה')}</div>`
+    : `<div class="hop"><span class="pl">✈</span> מ${esc(state.stops[i-1].place||'תחנה')} ל${esc(st.place||'תחנה')}</div>`;
+
+  const nightsBadge = n===null ? ''
+    : n<0 ? `<span class="nights bad">תאריכים הפוכים</span>`
+    : `<span class="nights${n===0?'':''}">${n} ${n===1?'לילה':'לילות'}</span>`;
+
+  return `${hop}
+  <div class="leg" data-id="${st.id}">
+    <div class="spine"></div>
+    <div class="node ${nodeCls}"></div>
+    <div class="card ${gapBefore?'c-gap':''}">
+      <div class="card-head">
+        <input class="place-in" data-f="place" value="${esc(st.place)}" placeholder="לאן? (עיר / אזור)">
+        <div class="leg-tools">
+          <button class="icon-btn" data-act="up" ${i===0?'disabled':''} title="העלה">▲</button>
+          <button class="icon-btn" data-act="down" ${i===state.stops.length-1?'disabled':''} title="הורד">▼</button>
+          <button class="icon-btn danger" data-act="del" title="מחק תחנה">✕</button>
+        </div>
+      </div>
+      <div class="dates">
+        <div class="date-field"><label>הגעה</label><input type="date" data-f="arrive" value="${st.arrive}"></div>
+        <div class="date-field"><label>יציאה</label><input type="date" data-f="depart" value="${st.depart}"></div>
+        ${nightsBadge}
+      </div>
+      <div class="bookings">
+        ${bookingRow(st,'flight','✈','טיסה','מס׳ טיסה / מסלול / שעה')}
+        ${bookingRow(st,'stay','⌂','לינה','שם המקום / מס׳ אישור')}
+        ${bookingRow(st,'car','⛟','רכב','חברה / נקודת איסוף')}
+      </div>
+      <div class="needs">
+        <div class="needs-h">✦ מה צריך כאן</div>
+        ${st.needs.map(nd=>needHTML(nd)).join('')}
+        <button class="add-need" data-act="addNeed">＋ פריט</button>
+      </div>
+    </div>
+  </div>`;
+}
+
+function bookingRow(st,field,icon,label,ph){
+  const b=st[field];
+  const cls=STATUS_CLASS[b.status];
+  const codeCls=field==='stay'?'code':(field==='flight'?'code':'');
+  return `<div class="brow" data-field="${field}">
+    <span class="bicon">${icon}</span>
+    <span class="blab">${label}</span>
+    <input class="binfo ${codeCls}" data-binfo="${field}" value="${esc(b.info)}" placeholder="${ph}">
+    <button class="status ${cls}" data-status="${field}">${STATUS_LABEL[b.status]}</button>
+  </div>`;
+}
+
+function needHTML(nd){
+  return `<div class="need ${nd.done?'done':''}" data-need="${nd.id}">
+    <button class="chk ${nd.done?'on':''}" data-act="toggleNeed">${nd.done?'✓':''}</button>
+    <input class="need-txt" data-needtext value="${esc(nd.text)}" placeholder="פריט / משימה">
+    <button class="rm" data-act="rmNeed">✕</button>
+  </div>`;
+}
+
+/* ---------- calendar view ---------- */
+function calendarHTML(){
+  const datedStops=state.stops.filter(s=>s.arrive&&s.depart);
+  if(!datedStops.length){
+    return `<div class="panel" style="text-align:center;color:var(--ink-soft);font-size:14px">
+      אין עדיין תאריכים — הוסיפי הגעה/יציאה לתחנות כדי לראות אותן בלוח השנה.</div>`;
+  }
+  const allArrives=datedStops.map(s=>parseD(s.arrive));
+  const allDeparts=datedStops.map(s=>parseD(s.depart));
+  const minD=new Date(Math.min(...allArrives));
+  const maxD=new Date(Math.max(...allDeparts));
+
+  let cur=new Date(minD.getFullYear(),minD.getMonth(),1);
+  const end=new Date(maxD.getFullYear(),maxD.getMonth(),1);
+  let months='';
+  while(cur<=end){
+    months+=monthHTML(cur.getFullYear(),cur.getMonth());
+    cur=new Date(cur.getFullYear(),cur.getMonth()+1,1);
+  }
+  return `<div class="cal-legend">
+      <span><i class="dot d-ok"></i> סגור</span>
+      <span><i class="dot d-part"></i> חלקי</span>
+      <span><i class="dot d-none"></i> ריק</span>
+      <span><i class="dot d-gap"></i> לילה לא מכוסה</span>
+    </div>${months}`;
+}
+
+function stopsOnDay(iso){
+  return state.stops.filter(s=>s.arrive&&s.depart&&iso>=s.arrive&&iso<s.depart);
+}
+function isUncoveredNight(iso){
+  // a night with no stop covering it, but inside the overall trip span
+  const covered=stopsOnDay(iso).length>0;
+  if(covered)return false;
+  const stops=state.stops.filter(s=>s.arrive&&s.depart);
+  if(!stops.length)return false;
+  const tripStart=stops.reduce((m,s)=>s.arrive<m?s.arrive:m,stops[0].arrive);
+  const tripEnd=stops.reduce((m,s)=>s.depart>m?s.depart:m,stops[0].depart);
+  return iso>=tripStart&&iso<tripEnd;
+}
+
+function monthHTML(year,month){
+  const first=new Date(year,month,1);
+  const startDow=(first.getDay()+1)%7; // shift so week starts Sunday but RTL-friendly; getDay 0=Sun
+  const daysInMonth=new Date(year,month+1,0).getDate();
+
+  let cells='';
+  for(let i=0;i<startDow;i++)cells+=`<div class="cal-cell empty"></div>`;
+  for(let d=1;d<=daysInMonth;d++){
+    const date=new Date(year,month,d);
+    const iso=toISO(date);
+    const dayStops=stopsOnDay(iso);
+    const gap=isUncoveredNight(iso);
+    const chips=dayStops.slice(0,2).map(s=>{
+      const cls=stripClass(s);
+      const ccls=cls==='s-ok'?'cc-ok':cls==='s-part'?'cc-part':'cc-none';
+      return `<span class="cal-chip ${ccls}" title="${esc(s.place||'תחנה')}">${esc(s.place||'תחנה')}</span>`;
+    }).join('');
+    cells+=`<div class="cal-cell ${gap?'is-gap':''}">
+      <span class="dnum">${d}</span>
+      ${chips}
+    </div>`;
+  }
+  return `<div class="cal-month">
+    <div class="cal-month-h">${MONTH_NAMES[month]} ${year}</div>
+    <div class="cal-grid">
+      ${DOW.map(d=>`<div class="cal-dow">${d}</div>`).join('')}
+      ${cells}
+    </div>
+  </div>`;
+}
+
+function emptyHTML(){
+  return `<div class="top"><div><div class="eyebrow">לוח שליטה לטיול</div>
+    <h1>בואי נתכנן את הטיול</h1></div></div>
+  ${syncBarHTML()}
+  <div class="empty">
+    <div class="em-ic">🧭</div>
+    <h2>תחנה אחר תחנה</h2>
+    <p>מוסיפים כל יעד עם תאריכי הגעה ויציאה, ולכל תחנה עוקבים אחרי הטיסה, הלינה והרכב. הלוח יראה לך מה עוד לא סגור ויתריע אם נשארו לילות בלי לינה.</p>
+    <div class="row">
+      <button class="btn-primary" id="startBlank">＋ תחנה ראשונה</button>
+      <button class="btn-ghost" id="startSample">טען טיול לדוגמה</button>
+    </div>
+    <div class="hint">הכול נשמר בענן (אם מחובר) וגם במכשיר. שלחו את הקישור הזה לבן/בת הזוג כדי לערוך באותו טיול. אפשר לאפס בכל רגע.</div>
+  </div>`;
+}
+
+/* ---------- bindings ---------- */
+function esc(s){return String(s??'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
+function findStop(id){return state.stops.find(s=>s.id===id);}
+
+function bindEmpty(){
+  document.getElementById('startBlank').onclick=()=>{state.stops.push(newStop());scheduleSave();render();};
+  document.getElementById('startSample').onclick=()=>{state=sampleTrip();scheduleSave();render();};
+  document.getElementById('copyLink').onclick=copyShareLink;
+}
+
+function bindMain(){
+  document.getElementById('title').oninput=e=>{state.title=e.target.value;scheduleSave();};
+  document.getElementById('reset').onclick=()=>{
+    if(confirm('לאפס את כל הטיול? כל התחנות יימחקו.')){state={title:'הטיול שלי',stops:[]};scheduleSave();render();}
+  };
+  document.getElementById('copyLink').onclick=copyShareLink;
+
+  document.querySelectorAll('#viewsw button').forEach(btn=>{
+    btn.onclick=()=>{view=btn.dataset.view;render();};
+  });
+
+  const addLeg=document.getElementById('addLeg');
+  if(addLeg)addLeg.onclick=()=>{state.stops.push(newStop());scheduleSave();render();};
+
+  document.querySelectorAll('.leg').forEach(leg=>{
+    const id=leg.dataset.id;const st=findStop(id);
+    // stop-level fields (place / dates)
+    leg.querySelectorAll('[data-f]').forEach(inp=>{
+      const f=inp.dataset.f;
+      inp.oninput=e=>{st[f]=e.target.value;scheduleSave();
+        if(f==='arrive'||f==='depart')softRefresh();};
+    });
+    // tools
+    leg.querySelectorAll('[data-act]').forEach(btn=>{
+      const act=btn.dataset.act;
+      if(['up','down','del'].includes(act))btn.onclick=()=>handleStopAct(id,act);
+      if(act==='addNeed')btn.onclick=()=>{st.needs.push({id:uid(),text:'',done:false});scheduleSave();render();focusLast(id);};
+    });
+    // booking info + status
+    leg.querySelectorAll('[data-binfo]').forEach(inp=>{
+      const f=inp.dataset.binfo;inp.oninput=e=>{st[f].info=e.target.value;scheduleSave();};
+    });
+    leg.querySelectorAll('[data-status]').forEach(btn=>{
+      const f=btn.dataset.status;
+      btn.onclick=()=>{cycleStatus(st,f);scheduleSave();softRefresh();};
+    });
+    // needs
+    leg.querySelectorAll('[data-need]').forEach(row=>{
+      const nd=st.needs.find(x=>x.id===row.dataset.need);
+      row.querySelector('[data-needtext]').oninput=e=>{nd.text=e.target.value;scheduleSave();};
+      row.querySelector('[data-act="toggleNeed"]').onclick=()=>{nd.done=!nd.done;scheduleSave();render();};
+      row.querySelector('[data-act="rmNeed"]').onclick=()=>{st.needs=st.needs.filter(x=>x.id!==nd.id);scheduleSave();render();};
+    });
+  });
+}
+
+function cycleStatus(st,field){
+  const cyc=field==='car'?STATUS_CYCLE_CAR:STATUS_CYCLE;
+  const cur=st[field].status;
+  const i=cyc.indexOf(cur);
+  st[field].status=cyc[(i+1)%cyc.length];
+}
+
+function handleStopAct(id,act){
+  const i=state.stops.findIndex(s=>s.id===id);
+  if(act==='del'){
+    const st=state.stops[i];
+    const hasData=st.place||st.arrive||st.depart||st.flight.info||st.stay.info||st.needs.length;
+    if(hasData&&!confirm('למחוק את התחנה?'))return;
+    state.stops.splice(i,1);
+  }else if(act==='up'&&i>0){[state.stops[i-1],state.stops[i]]=[state.stops[i],state.stops[i-1]];}
+  else if(act==='down'&&i<state.stops.length-1){[state.stops[i+1],state.stops[i]]=[state.stops[i],state.stops[i+1]];}
+  scheduleSave();render();
+}
+
+// re-render just the readiness panel + strip + nodes without losing input focus on date/status changes
+function softRefresh(){
+  // simplest robust approach: full render preserves values from state.
+  // preserve focus on the active element by data attributes
+  const active=document.activeElement;
+  const legEl=active?.closest?.('.leg');
+  const sel=active?.dataset?.f||active?.dataset?.binfo||(active?.hasAttribute?.('data-needtext')?'needtext':null);
+  const legId=legEl?.dataset?.id;
+  render();
+  if(legId&&sel){
+    const target=document.querySelector(`.leg[data-id="${legId}"] [data-f="${sel}"], .leg[data-id="${legId}"] [data-binfo="${sel}"]`);
+    if(target){target.focus();const v=target.value;target.value='';target.value=v;}
+  }
+}
+
+function focusLast(id){
+  const inputs=document.querySelectorAll(`.leg[data-id="${id}"] [data-needtext]`);
+  if(inputs.length)inputs[inputs.length-1].focus();
+}
+
+/* ---------- boot ---------- */
+(async function(){
+  await load();
+  render();
+  // give the Firebase module a tick to attach before re-rendering the sync bar
+  setTimeout(()=>renderSyncBar(),300);
+})();
+</script>
+</body>
+</html>
