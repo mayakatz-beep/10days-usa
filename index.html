@@ -12,9 +12,9 @@
 <style>
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
 :root{
-  --db:#2563EB;--dbt:#fff; --lb:#0EA5E9;--lbt:#fff;
-  --red:#EF4444;--redt:#fff; --tan:#D97706;--tant:#fff;
-  --grn:#16A34A;--grnt:#fff; --wht:#CBD5E1;--whtt:#1e3a5f;
+  --db:#1E3A66;--dbt:#fff; --lb:#4F94D4;--lbt:#fff;
+  --red:#E03A3E;--redt:#fff; --tan:#F5C55A;--tant:#3A2A05;
+  --grn:#3F9A47;--grnt:#fff; --wht:#E9EEF3;--whtt:#1e3a5f;
   --auto:#6B7280;--autot:#fff;
   --bg:#EFF6FF; --surf:#FFFFFF; --surf2:#DBEAFE;
   --border:#BFDBFE; --text:#1E3A5F; --muted:#64748B;
@@ -177,7 +177,7 @@ input:focus{border-color:var(--accent2);box-shadow:0 0 0 3px rgba(37,99,235,.25)
 .ldot{width:13px;height:13px;border-radius:3px;flex-shrink:0}
 .hl-banner{display:none;margin:0 8px 4px;padding:7px 14px;border-radius:8px;font-size:13px;color:var(--accent2);background:rgba(37,99,235,.1);border:1px solid rgba(37,99,235,.3);line-height:1.6;flex-shrink:0}
 .map-content{flex:1;display:flex;overflow:hidden;min-height:0}
-.map-scroll{flex:1;overflow:auto;padding:6px}
+.map-scroll{flex:1;overflow:auto;padding:6px;background:#A9D3EE}
 .map-note{text-align:center;font-size:11px;color:var(--muted);padding:4px 14px 8px;flex-shrink:0}
 
 /* ── NE Panel — HTML sidebar (replaces SVG panel) ── */
@@ -458,12 +458,12 @@ input:focus{border-color:var(--accent2);box-shadow:0 0 0 3px rgba(37,99,235,.25)
     <button class="map-close" onclick="closeMap()" aria-label="Close map">✕ Close</button>
   </div>
   <div class="map-leg">
-    <div class="leg"><div class="ldot" style="background:#1B4F9C"></div>Dark Blue</div>
-    <div class="leg"><div class="ldot" style="background:#38BDF8"></div>Lt. Blue</div>
-    <div class="leg"><div class="ldot" style="background:#DC2626"></div>Red</div>
-    <div class="leg"><div class="ldot" style="background:#C4922A"></div>Tan</div>
-    <div class="leg"><div class="ldot" style="background:#16803D"></div>Green</div>
-    <div class="leg"><div class="ldot" style="background:#e2e8f0;border:1px solid #94a3b8"></div>AK/HI</div>
+    <div class="leg"><div class="ldot" style="background:var(--db)"></div>Dark Blue</div>
+    <div class="leg"><div class="ldot" style="background:var(--lb)"></div>Lt. Blue</div>
+    <div class="leg"><div class="ldot" style="background:var(--red)"></div>Red</div>
+    <div class="leg"><div class="ldot" style="background:var(--tan)"></div>Yellow</div>
+    <div class="leg"><div class="ldot" style="background:var(--grn)"></div>Green</div>
+    <div class="leg"><div class="ldot" style="background:var(--wht);border:1px solid #94a3b8"></div>AK/HI</div>
   </div>
   <div class="map-content">
     <div class="map-scroll"><div id="map-wrap">
@@ -529,14 +529,15 @@ input:focus{border-color:var(--accent2);box-shadow:0 0 0 3px rgba(37,99,235,.25)
 // GAME DATA
 // ═══════════════════════════════════════════════════════════════════
 const SC = {
-  ME:'db',NH:'tan',VT:'lb', MA:'red',RI:'tan',CT:'lb',
-  NY:'tan',NJ:'lb', PA:'db', DE:'red',MD:'lb', VA:'db',
-  WV:'tan',NC:'tan',SC:'red',GA:'db', FL:'grn',AL:'red',
-  MS:'db', TN:'grn',KY:'red',OH:'lb', IN:'tan',MI:'grn',
-  WI:'db', MN:'grn',IA:'lb', IL:'grn',MO:'db', AR:'tan',
-  LA:'lb', ND:'db', SD:'tan',NE:'grn',KS:'lb', OK:'grn',
-  TX:'red',NM:'lb', CO:'red',WY:'db', MT:'grn',ID:'red',
-  WA:'db', OR:'lb', CA:'grn',NV:'tan',UT:'grn',AZ:'red',
+  // Colors match the printed board of "10 Days in the USA"
+  ME:'db', NH:'grn',VT:'red',MA:'lb', RI:'tan',CT:'grn',
+  NY:'db', NJ:'red',PA:'lb', DE:'tan',MD:'grn',VA:'red',
+  WV:'db', NC:'db', SC:'tan',GA:'lb', FL:'grn',AL:'db',
+  MS:'red',TN:'grn',KY:'lb', OH:'tan',IN:'grn',MI:'red',
+  WI:'tan',MN:'grn',IA:'lb', IL:'db', MO:'red',AR:'tan',
+  LA:'lb', ND:'red',SD:'db', NE:'grn',KS:'tan',OK:'db',
+  TX:'red',NM:'lb', CO:'red',WY:'lb', MT:'grn',ID:'red',
+  WA:'tan',OR:'db', CA:'grn',NV:'lb', UT:'db', AZ:'tan',
   AK:'wht',HI:'wht'
 };
 const SN = {
@@ -568,9 +569,9 @@ const BOR = {
 };
 const FOUR_BAD = new Set(['CO-AZ','AZ-CO','NM-UT','UT-NM']);
 const COLORS = ['db','lb','red','tan','grn'];
-const C_HEX = {db:'#1B4F9C',lb:'#38BDF8',red:'#DC2626',tan:'#C4922A',grn:'#16803D',wht:'#e2e8f0'};
-const C_TXT = {db:'#fff',lb:'#0c1a2e',red:'#fff',tan:'#fff',grn:'#fff',wht:'#334155'};
-const C_DARK = new Set(['lb','tan','wht']);
+const C_HEX = {db:'#1E3A66',lb:'#4F94D4',red:'#E03A3E',tan:'#F5C55A',grn:'#3F9A47',wht:'#E9EEF3'};
+const C_TXT = {db:'#fff',lb:'#fff',red:'#fff',tan:'#3A2A05',grn:'#fff',wht:'#1E3A5F'};
+const C_DARK = new Set(['tan','wht']); // light backgrounds → dark text
 
 // Two-hop neighbors (precomputed)
 const TWO = {};
@@ -604,7 +605,7 @@ function mkDeck() {
 }
 
 function clbl(c) {
-  return { db:'Dark Blue', lb:'Lt. Blue', red:'Red', tan:'Tan', grn:'Green' }[c] || c;
+  return { db:'Dark Blue', lb:'Lt. Blue', red:'Red', tan:'Yellow', grn:'Green' }[c] || c;
 }
 
 function borderOk(a, b) {
