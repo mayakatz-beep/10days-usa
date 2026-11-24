@@ -278,17 +278,26 @@ input:focus{border-color:var(--accent2);box-shadow:0 0 0 3px rgba(37,99,235,.25)
 </head>
 <body>
 
+<!-- RECONNECT BANNER -->
+<div id="net-banner" class="hidden" style="position:fixed;top:0;left:0;right:0;z-index:600;
+  background:#f59e0b;color:#0b1120;padding:9px 12px;display:flex;align-items:center;gap:10px;
+  font-size:13px;font-weight:700;box-shadow:0 2px 10px rgba(0,0,0,.2)">
+  <span>🔄</span><span id="net-msg" style="flex:1">Reconnecting…</span>
+  <button onclick="leaveGame()" style="padding:6px 12px;border-radius:8px;border:2px solid #0b1120;
+    background:transparent;color:#0b1120;font-weight:700;font-size:12px;cursor:pointer;font-family:inherit">Leave game</button>
+</div>
+
 <!-- RESUME BANNER -->
 <div id="resume-banner" class="hidden" style="position:fixed;bottom:0;left:0;right:0;z-index:500;
   background:#1e3a8a;border-top:3px solid #f59e0b;padding:14px 16px;display:flex;flex-direction:column;gap:10px">
-  <div style="font-size:13px;font-weight:700;color:#fff">⚡ Game in progress found</div>
+  <div style="font-size:13px;font-weight:700;color:#fff">⚡ You have a game in progress</div>
   <div style="font-size:12px;color:rgba(255,255,255,.8)">
     <span id="resume-name"></span> · Room <b id="resume-room"></b> · <span id="resume-phase"></span>
   </div>
   <div style="display:flex;gap:8px">
     <button onclick="resumeGame()" style="flex:1;padding:10px;border-radius:8px;border:none;
       background:#f59e0b;color:#0b1120;font-weight:700;font-size:13px;cursor:pointer;font-family:inherit">
-      ↩ Resume Game
+      ↩ Return to game
     </button>
     <button onclick="discardSave()" style="padding:10px 14px;border-radius:8px;border:2px solid rgba(255,255,255,.3);
       background:transparent;color:rgba(255,255,255,.7);font-size:12px;cursor:pointer;font-family:inherit">
@@ -341,7 +350,7 @@ input:focus{border-color:var(--accent2);box-shadow:0 0 0 3px rgba(37,99,235,.25)
     <div class="code-box">
       <div class="code-lbl">Room Code</div>
       <div class="code-val" id="lob-code"></div>
-      <button class="copy-btn" onclick="copyCode()">📋 Copy & share</button>
+      <button class="copy-btn" onclick="copyCode()">🔗 Share invite link</button>
     </div>
     <div id="lob-players"></div>
 
@@ -685,7 +694,7 @@ function togglePin(id, name) {
 // LOCAL PLAYER STATE
 // ═══════════════════════════════════════════════════════════════════
 const MP = {
-  myName:'', myId:'', isHost:false, offline:false, code:'', botCount:2,
+  myName:'', myId:'', isHost:false, offline:false, code:'', botCount:2, joined:false,
   phase:'lobby',
   players:[], discards:[null,null,null], drawCount:0,
   currentId:null, currentName:null,
@@ -700,74 +709,205 @@ const MP = {
 
 // ═══════════════════════════════════════════════════════════════════
 // PEER NETWORKING
+// ───────────────────────────────────────────────────────────────────
+// Players are identified by a stable player key (kept per browser tab
+// and in the save), NOT by their PeerJS connection id. So a player who
+// reloads, loses Wi-Fi or switches apps simply reconnects and gets the
+// same seat, hand and turn back. Guests retry automatically; the host
+// keeps the room open and waits for them.
 // ═══════════════════════════════════════════════════════════════════
+const PEER_PREFIX = '10days-usa-';      // avoid clashing with other PeerJS apps
+const TURN_GRACE_MS = 30000;            // wait this long for an offline player's turn
+const SETUP_GRACE_MS = 60000;           // then auto-finish an offline player's setup
 let peer = null;
 let hostConn = null;
-let guestConns = {};
+let guestConns = {};                    // host only: playerId -> DataConnection
+let connecting = false;
+let leaving = false;
+let graceTimer = null;
+let lostSince = 0;
+let lastHostMsg = 0;
+const HEARTBEAT_TIMEOUT = 15000;   // no message for this long = connection is dead
+
+function peerIdFor(code) { return PEER_PREFIX + code; }
 
 function genCode() {
   return Array.from({ length:4 }, () => 'ABCDEFGHJKLMNPQRSTUVWXYZ'[Math.floor(Math.random() * 23)]).join('');
 }
 
-function createRoom() {
-  // FIX #4: show loading state immediately so user knows something is happening
+function tabKey() { try { return sessionStorage.getItem('10days_tab_key'); } catch(e) { return null; } }
+function setTabKey(k) { try { sessionStorage.setItem('10days_tab_key', k); } catch(e) {} }
+function myPlayerKey() {
+  let k = tabKey();
+  if (!k) { k = 'p' + Math.random().toString(36).slice(2, 10) + Date.now().toString(36); setTabKey(k); }
+  return k;
+}
+
+function newPlayer(id, name, extra) {
+  return Object.assign({
+    id, name, connected:true, bot:false, host:false, offSince:0,
+    setupDone:false, setupIdx:0, hand:Array(10).fill(null), pending:null
+  }, extra || {});
+}
+
+// ── Reconnect banner ───────────────────────────────────────────────
+function showNetBanner(msg) {
+  document.getElementById('net-msg').textContent = msg;
+  document.getElementById('net-banner').classList.remove('hidden');
+}
+function hideNetBanner() { document.getElementById('net-banner').classList.add('hidden'); lostSince = 0; }
+
+function leaveGame() {
+  leaving = true;
+  clearSave();
+  try { peer && peer.destroy(); } catch(e) {}
+  location.href = location.pathname;
+}
+
+// ── HOST ───────────────────────────────────────────────────────────
+function createRoom(attempt = 0) {
   const btn = document.querySelector('#s-cj .btn-a');
   if (btn) { btn.disabled = true; btn.textContent = 'Connecting…'; }
   document.getElementById('connecting-msg').classList.remove('hidden');
+  const reset = () => {
+    if (btn) { btn.disabled = false; btn.textContent = '🎲 Create Multiplayer Room'; }
+    document.getElementById('connecting-msg').classList.add('hidden');
+  };
 
-  const code = genCode();
-  MP.code = code; MP.isHost = true; MP.offline = false;
-  peer = new Peer(code, { debug:0 });
-  peer.on('open', id => {
-    MP.myId = id;
-    MP.HOST.players = [{
-      id:code, name:MP.myName, connected:true, bot:false,
-      setupDone:false, setupIdx:0, hand:Array(10).fill(null), pending:null
-    }];
-    if (btn) { btn.disabled = false; btn.textContent = '🎲 Create Multiplayer Room'; }
-    document.getElementById('connecting-msg').classList.add('hidden');
-    showLobby();
-  });
-  peer.on('connection', conn => {
-    conn.on('open', () => {
-      guestConns[conn.peer] = conn;
-      conn.on('data', msg => hostReceive(conn.peer, msg));
-      conn.on('close', () => hostGuestDisconnect(conn.peer));
-      conn.on('error', () => hostGuestDisconnect(conn.peer));
-    });
-  });
-  peer.on('error', e => {
-    if (btn) { btn.disabled = false; btn.textContent = '🎲 Create Multiplayer Room'; }
-    document.getElementById('connecting-msg').classList.add('hidden');
-    toast('Connection error: ' + e.type);
-    show('s-cj');
+  leaving = false;
+  MP.code = genCode(); MP.isHost = true; MP.offline = false; MP.joined = true;
+  MP.myId = myPlayerKey();
+  MP.HOST = { deck:[], players:[newPlayer(MP.myId, MP.myName, { host:true })],
+              discards:[null,null,null], drawCount:0, turnIdx:0,
+              heldBy:null, heldTile:null, phase:'lobby', winner:null };
+  startHostPeer({
+    onOpen: () => { reset(); hostSendSync(MP.myId); },
+    onIdTaken: () => { if (attempt < 5) createRoom(attempt + 1); else { reset(); toast('Could not create a room, try again'); } },
+    onError: e => { reset(); toast('Connection error: ' + e.type); show('s-cj'); }
   });
 }
 
-function joinRoom() {
-  const code = document.getElementById('join-code-in').value.trim().toUpperCase();
+function startHostPeer(o) {
+  try { peer && peer.destroy(); } catch(e) {}
+  const p = new Peer(peerIdFor(MP.code), { debug:0 });
+  peer = p;
+  let opened = false;
+  p.on('open', () => { opened = true; o.onOpen(); });
+  p.on('connection', attachGuestConn);
+  p.on('error', e => {
+    if (opened) return; // later errors: the watchdog reconnects to the server
+    try { p.destroy(); } catch(_) {}
+    (e.type === 'unavailable-id' ? o.onIdTaken : o.onError)(e);
+  });
+}
+
+function attachGuestConn(conn) {
+  conn._seen = Date.now();
+  conn.on('data', msg => {
+    if (!msg) return;
+    conn._seen = Date.now();
+    if (msg.type === 'ping') return;
+    if (msg.type === 'join') { hostPlayerJoin(conn, msg.name, msg.key); return; }
+    if (conn._pid && guestConns[conn._pid] === conn) hostReceive(conn._pid, msg);
+  });
+  const lost = () => { if (conn._pid && guestConns[conn._pid] === conn) hostGuestDisconnect(conn._pid); };
+  conn.on('close', lost);
+  conn.on('error', lost);
+}
+
+// ── GUEST ──────────────────────────────────────────────────────────
+function joinRoom(codeArg) {
+  const code = (codeArg || document.getElementById('join-code-in').value).trim().toUpperCase();
   if (code.length !== 4) { toast('Enter a 4-letter code'); return; }
-  MP.code = code; MP.isHost = false; MP.offline = false;
+  if (connecting) return;
+  leaving = false;
+  MP.code = code; MP.isHost = false; MP.offline = false; MP.joined = false;
+  MP.myId = myPlayerKey();
   document.getElementById('connecting-msg').classList.remove('hidden');
-  peer = new Peer(undefined, { debug:0 });
-  peer.on('open', id => {
-    MP.myId = id;
-    hostConn = peer.connect(code, { reliable:true });
-    hostConn.on('open', () => hostConn.send({ type:'join', name:MP.myName }));
-    hostConn.on('data', msg => guestReceive(msg));
-    hostConn.on('close', () => toast('Disconnected from host'));
-    hostConn.on('error', () => toast('Host connection error'));
+  connectToHost();
+}
+
+function connectToHost() {
+  if (connecting || leaving || !MP.code) return;
+  connecting = true;
+  const old = hostConn; hostConn = null;
+  try { old && old.close(); } catch(e) {}
+  try { peer && peer.destroy(); } catch(e) {}
+
+  const p = new Peer(undefined, { debug:0 });
+  peer = p;
+  const fail = reason => {
+    if (peer !== p) return;
+    connecting = false;
+    try { p.destroy(); } catch(e) {}
+    if (!MP.joined) {
+      document.getElementById('connecting-msg').classList.add('hidden');
+      toast(reason);
+      MP.code = '';
+    }
+  };
+  const timer = setTimeout(() => { if (connecting && peer === p) fail('Could not reach the room — check the code'); }, 12000);
+
+  p.on('open', () => {
+    const c = p.connect(peerIdFor(MP.code), { reliable:true });
+    hostConn = c;
+    c.on('open', () => {
+      clearTimeout(timer); connecting = false;
+      lastHostMsg = Date.now();
+      c.send({ type:'join', name:MP.myName, key:MP.myId });
+    });
+    c.on('data', guestReceive);
+    const lost = () => { if (hostConn === c) onHostLost(); };
+    c.on('close', lost);
+    c.on('error', lost);
   });
-  peer.on('error', e => {
-    document.getElementById('connecting-msg').classList.add('hidden');
-    toast(e.type === 'peer-unavailable' ? 'Room not found!' : 'Error: ' + e.type);
+  p.on('error', e => {
+    clearTimeout(timer);
+    fail(e.type === 'peer-unavailable' ? 'Room not found!' : 'Connection error: ' + e.type);
   });
 }
+
+function onHostLost() {
+  hostConn = null;
+  if (leaving || !MP.joined || MP.phase === 'ended') return;
+  if (!lostSince) lostSince = Date.now();
+  showNetBanner('Connection lost — reconnecting…');
+  setTimeout(connectToHost, 1000);
+}
+
+// Runs every few seconds and whenever the page becomes visible again
+// (phones pause pages in the background).
+function netWatchdog() {
+  if (leaving || MP.offline || !MP.code || !MP.joined || MP.phase === 'ended') return;
+  if (MP.isHost) {
+    if (peer && !peer.destroyed && peer.disconnected) { try { peer.reconnect(); } catch(e) {} }
+    hostBroadcast({ type:'ping' });
+    Object.entries(guestConns).forEach(([pid, c]) => {
+      if (Date.now() - (c._seen || 0) > HEARTBEAT_TIMEOUT) {
+        c._pid = null; try { c.close(); } catch(e) {}
+        hostGuestDisconnect(pid);
+      }
+    });
+  } else if (hostConn && hostConn.open) {
+    if (Date.now() - lastHostMsg > HEARTBEAT_TIMEOUT) { const c = hostConn; onHostLost(); try { c.close(); } catch(e) {} }
+    else { try { hostConn.send({ type:'ping' }); } catch(e) {} }
+  } else {
+    if (!lostSince) lostSince = Date.now();
+    const secs = (Date.now() - lostSince) / 1000;
+    showNetBanner(secs > 45 ? 'Host seems offline — still trying…' : 'Reconnecting…');
+    connectToHost();
+  }
+}
+setInterval(netWatchdog, 4000);
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible') netWatchdog(); else saveState();
+});
 
 // Send message to host (works for both host-self and network guests)
 function sendToHost(msg) {
-  if (MP.isHost) { hostReceive(MP.myId, msg); }
-  else { try { hostConn.send(msg); } catch(e) { toast('Connection lost'); } }
+  if (MP.isHost) { hostReceive(MP.myId, msg); return true; }
+  if (!hostConn || !hostConn.open) { toast('Reconnecting… try again in a moment'); netWatchdog(); return false; }
+  try { hostConn.send(msg); return true; } catch(e) { toast('Connection lost'); return false; }
 }
 
 // Broadcast to all network guests (not to host itself)
@@ -777,93 +917,122 @@ function hostBroadcast(msg) {
 }
 
 // Send to a specific player (handles local player and bots)
-function hostSend(peerId, msg) {
-  if (peerId.startsWith('__bot_')) return; // Bots are managed server-side only
-  if (peerId === MP.myId || peerId === '__local__') { guestReceive(msg); return; }
-  try { guestConns[peerId]?.send(msg); } catch(e) {}
+function hostSend(playerId, msg) {
+  if (playerId.startsWith('__bot_')) return; // Bots are managed server-side only
+  if (playerId === MP.myId || playerId === '__local__') { guestReceive(msg); return; }
+  try { guestConns[playerId]?.send(msg); } catch(e) {}
 }
 
 // ═══════════════════════════════════════════════════════════════════
 // HOST — RECEIVE & DISPATCH
 // ═══════════════════════════════════════════════════════════════════
-function hostReceive(peerId, msg) {
+function hostReceive(pid, msg) {
   switch (msg.type) {
-    case 'join':          hostPlayerJoin(peerId, msg.name);          break;
-    case 'setup_place':   hostSetupPlace(peerId, msg.slot);          break;
-    case 'draw':          hostDraw(peerId, msg.src);                  break;
-    case 'swap':          hostSwap(peerId, msg.slot, msg.discard);   break;
-    case 'discard_held':  hostDiscardHeld(peerId, msg.discard);      break;
-    case 'declare':       hostDeclare(peerId);                        break;
-    case 'req_sync':      hostSendSync(peerId);                      break;
-    case 'react':         hostReact(peerId, msg.emoji);              break;
+    case 'setup_place':   hostSetupPlace(pid, msg.slot);          break;
+    case 'draw':          hostDraw(pid, msg.src);                  break;
+    case 'swap':          hostSwap(pid, msg.slot, msg.discard);   break;
+    case 'discard_held':  hostDiscardHeld(pid, msg.discard);      break;
+    case 'declare':       hostDeclare(pid);                        break;
+    case 'req_sync':      hostSendSync(pid);                      break;
+    case 'react':         hostReact(pid, msg.emoji);              break;
   }
 }
 
 // ═══════════════════════════════════════════════════════════════════
 // HOST — PLAYER MANAGEMENT
 // ═══════════════════════════════════════════════════════════════════
-function hostPlayerJoin(peerId, name) {
-  if (MP.HOST.phase !== 'lobby') {
-    guestConns[peerId]?.send({ type:'error', msg:'Game already started — too late to join' });
+function hostPlayerJoin(conn, name, key) {
+  const H = MP.HOST;
+  name = String(name || '').trim().slice(0, 14) || 'Player';
+  const reject = m => {
+    try { conn.send({ type:'error', fatal:true, msg:m }); } catch(e) {}
+    setTimeout(() => { try { conn.close(); } catch(e) {} }, 500);
+  };
+
+  // 1. The same player coming back (reload, Wi-Fi drop, app switch)
+  let p = key && H.players.find(x => x.id === key && !x.bot && !x.host);
+  // 2. Same name and that seat is offline (e.g. reopened on another tab/device)
+  if (!p) p = H.players.find(x => !x.bot && !x.host && !x.connected && x.name.toLowerCase() === name.toLowerCase());
+
+  if (p) {
+    const old = guestConns[p.id];
+    if (old && old !== conn) { old._pid = null; try { old.close(); } catch(e) {} }
+    conn._pid = p.id; guestConns[p.id] = conn;
+    const wasOffline = !p.connected;
+    p.connected = true; p.offSince = 0;
+    if (H.phase === 'playing' && H.players[H.turnIdx]?.id === p.id) { clearTimeout(graceTimer); graceTimer = null; }
+    hostSendSync(p.id);
+    if (wasOffline && H.phase !== 'lobby') toast(p.name + ' is back ✓', 'ok');
+    hostBroadcastState();
     return;
   }
-  // Prevent duplicate room entry from same peer
-  const existingById = MP.HOST.players.find(p => p.id === peerId);
-  if (existingById) {
-    existingById.connected = true;
-    hostSendSync(peerId);
-    return;
-  }
-  // Prevent duplicate names
-  const nameTaken = MP.HOST.players.some(p => p.name.toLowerCase() === name.toLowerCase());
-  if (nameTaken) {
-    guestConns[peerId]?.send({ type:'error', msg:'Name "' + name + '" is already taken in this room' });
-    return;
-  }
-  // Room full check (max 4: humans + bots combined)
-  if (MP.HOST.players.length >= 4) {
-    guestConns[peerId]?.send({ type:'error', msg:'Room is full (max 4 players)' });
-    return;
-  }
-  MP.HOST.players.push({
-    id:peerId, name, connected:true, bot:false,
-    setupDone:false, setupIdx:0, hand:Array(10).fill(null), pending:null
-  });
-  const pub = publicPlayers();
-  guestConns[peerId]?.send({ type:'joined', players:pub });
-  hostBroadcast({ type:'lobby_update', players:pub });
-  MP.players = pub;
-  renderLobby();
+
+  if (H.phase !== 'lobby') return reject('Game already started — too late to join');
+  if (H.players.some(x => x.id === key)) return reject('You are already in this room in another tab');
+  if (H.players.some(x => x.name.toLowerCase() === name.toLowerCase())) return reject('Name "' + name + '" is already taken in this room');
+  if (H.players.length >= 4) return reject('Room is full (max 4 players)');
+
+  H.players.push(newPlayer(key, name));
+  conn._pid = key; guestConns[key] = conn;
+  hostSendSync(key);
+  hostBroadcastState();
 }
 
-function hostGuestDisconnect(peerId) {
-  const p = MP.HOST.players.find(x => x.id === peerId);
+function hostGuestDisconnect(pid) {
+  delete guestConns[pid];
+  const H = MP.HOST, p = H.players.find(x => x.id === pid);
   if (!p) return;
-  p.connected = false;
-
-  // If the disconnecting player was holding a tile, return it to deck
-  if (MP.HOST.heldBy === peerId && MP.HOST.heldTile) {
-    MP.HOST.deck.unshift(MP.HOST.heldTile); // put at bottom
-    MP.HOST.heldTile = null;
-    MP.HOST.heldBy = null;
+  if (H.phase === 'lobby') {
+    // In the lobby just drop them — they are re-added when they reconnect
+    H.players = H.players.filter(x => x !== p);
+  } else if (H.phase !== 'ended') {
+    p.connected = false; p.offSince = Date.now();
+    toast(p.name + ' disconnected — waiting for them…', 'info', 3500);
+    scheduleOfflineChecks(p);
   }
-
-  hostBroadcast({ type:'lobby_update', players:publicPlayers() });
-  MP.players = publicPlayers();
-  if (MP.isHost) renderLobby();
-
-  // If it was their turn, advance
-  if (MP.HOST.phase === 'playing') {
-    const cur = MP.HOST.players[MP.HOST.turnIdx];
-    if (cur && cur.id === peerId) {
-      hostNextTurn();
-    }
-  }
+  hostBroadcastState();
 }
+
+// What to do while a player is offline: keep their seat, but don't block the game forever
+function scheduleOfflineChecks(p) {
+  const H = MP.HOST;
+  if (H.phase === 'setup' && !p.setupDone) {
+    setTimeout(() => { if (!p.connected && MP.HOST.phase === 'setup' && !p.setupDone) hostAutoFinishSetup(p); }, SETUP_GRACE_MS);
+  }
+  if (H.phase === 'playing' && H.players[H.turnIdx]?.id === p.id) startTurnGrace(p.id);
+}
+
+function startTurnGrace(pid) {
+  clearTimeout(graceTimer);
+  graceTimer = setTimeout(() => {
+    graceTimer = null;
+    const H = MP.HOST, cur = H.players[H.turnIdx];
+    if (H.phase !== 'playing' || !cur || cur.id !== pid || cur.connected) return;
+    if (H.heldBy === pid && H.heldTile) { H.deck.unshift(H.heldTile); H.heldTile = null; H.heldBy = null; }
+    toast(cur.name + ' is offline — turn skipped', 'info');
+    hostNextTurn();
+  }, TURN_GRACE_MS);
+}
+
+// Offline too long during setup: place their remaining tiles automatically
+function hostAutoFinishSetup(p) {
+  const H = MP.HOST;
+  for (let i = 0; i < 10; i++) {
+    if (p.hand[i]) continue;
+    p.hand[i] = p.pending || H.deck.pop();
+    p.pending = null;
+  }
+  p.setupIdx = 10; p.setupDone = true;
+  toast(p.name + "'s journey was filled in automatically", 'info');
+  hostBroadcastState();
+  if (H.players.every(x => x.setupDone)) startPlayingPhase();
+}
+
+function isLongGone(p) { return !p.bot && !p.connected && Date.now() - (p.offSince || 0) > TURN_GRACE_MS; }
 
 function publicPlayers() {
   return MP.HOST.players.map(p => ({
-    id:p.id, name:p.name, connected:p.connected,
+    id:p.id, name:p.name, connected:p.connected, host:p.host || false,
     bot:p.bot || false, setupDone:p.setupDone,
     handSize:p.hand.filter(Boolean).length
   }));
@@ -884,12 +1053,19 @@ function hostBroadcastState() {
   const s = publicState();
   hostBroadcast({ type:'public_state', state:s });
   applyPublicState(s); // host-self
+  saveState();
 }
 
-function hostSendSync(peerId) {
-  const p = MP.HOST.players.find(x => x.id === peerId);
-  if (p) hostSend(peerId, { type:'hand_update', hand:p.hand });
-  hostSend(peerId, { type:'public_state', state:publicState() });
+// Full picture for one player — used on join, rejoin and host restore
+function hostSendSync(pid) {
+  const H = MP.HOST, p = H.players.find(x => x.id === pid);
+  if (!p) return;
+  hostSend(pid, {
+    type:'sync', you:pid, code:MP.code, phase:H.phase,
+    hand:p.hand, setupPending:p.pending, setupIdx:p.setupIdx, setupDone:p.setupDone,
+    held:H.heldBy === pid ? H.heldTile : null,
+    state:publicState(), winner:H.winner || null
+  });
 }
 
 // ═══════════════════════════════════════════════════════════════════
@@ -908,8 +1084,7 @@ function addBotToLobby() {
     setupDone:false, setupIdx:0, hand:Array(10).fill(null), pending:null
   });
   MP.players = publicPlayers();
-  hostBroadcast({ type:'lobby_update', players:MP.players });
-  renderLobby();
+  hostBroadcastState();
 }
 
 function removeBotFromLobby() {
@@ -922,8 +1097,7 @@ function removeBotFromLobby() {
     }
   }
   MP.players = publicPlayers();
-  hostBroadcast({ type:'lobby_update', players:MP.players });
-  renderLobby();
+  hostBroadcastState();
 }
 
 // ═══════════════════════════════════════════════════════════════════
@@ -931,7 +1105,10 @@ function removeBotFromLobby() {
 // ═══════════════════════════════════════════════════════════════════
 function hostStartGame() {
   if (!MP.isHost) return;
-  if (MP.HOST.players.length < 2) { toast('Need at least 2 players'); return; }
+  // Anyone who left the lobby and didn't come back is dropped before starting
+  MP.HOST.players = MP.HOST.players.filter(p => p.bot || p.connected);
+  MP.players = publicPlayers();
+  if (MP.HOST.players.length < 2) { toast('Need at least 2 players'); renderLobby(); return; }
   hostStartGame_impl();
 }
 
@@ -999,6 +1176,7 @@ function startPlayingPhase() {
   hostBroadcastState();
 
   if (first.bot) setTimeout(() => runBotTurn(MP.HOST.turnIdx), 1200);
+  else if (!first.connected) startTurnGrace(first.id);
 }
 
 // ═══════════════════════════════════════════════════════════════════
@@ -1071,6 +1249,7 @@ function hostDeclare(peerId) {
   if (r.ok) {
     MP.HOST.phase = 'ended';
     const winner = { id:p.id, name:p.name, hand:[...p.hand] };
+    MP.HOST.winner = winner;
     hostBroadcast({ type:'won', winner });
     guestReceive({ type:'won', winner }); // host-self
   } else {
@@ -1081,11 +1260,13 @@ function hostDeclare(peerId) {
 function hostNextTurn() {
   const total = MP.HOST.players.length;
   if (total === 0) return;
+  clearTimeout(graceTimer); graceTimer = null;
 
   let next = (MP.HOST.turnIdx + 1) % total;
   let tries = 0;
-  // Skip disconnected human players (bots are always "connected")
-  while (tries < total && !MP.HOST.players[next].bot && !MP.HOST.players[next].connected) {
+  // Skip players who have already been offline for a while.
+  // Someone who only just dropped gets a grace period to come back (see below).
+  while (tries < total && isLongGone(MP.HOST.players[next])) {
     next = (next + 1) % total;
     tries++;
   }
@@ -1097,6 +1278,7 @@ function hostNextTurn() {
   guestReceive({ type:'turn_changed', id:p.id, name:p.name }); // host-self
   hostBroadcastState();
   if (p.bot) setTimeout(() => runBotTurn(next), 800);
+  else if (!p.connected) startTurnGrace(p.id);
 }
 
 // ═══════════════════════════════════════════════════════════════════
@@ -1168,6 +1350,7 @@ function runBotTurn(turnIdx) {
   if (result.ok) {
     MP.HOST.phase = 'ended';
     const winner = { id:bot.id, name:bot.name, hand:[...bot.hand] };
+    MP.HOST.winner = winner;
     hostBroadcast({ type:'won', winner });
     guestReceive({ type:'won', winner }); // host-self
     return;
@@ -1220,8 +1403,9 @@ function botPickDiscardPile() {
 // GUEST — RECEIVE FROM HOST
 // ═══════════════════════════════════════════════════════════════════
 function guestReceive(msg) {
+  lastHostMsg = Date.now();
   switch (msg.type) {
-    case 'joined':       MP.players = msg.players; showLobby();         break;
+    case 'sync':         onSync(msg);                                    break;
     case 'lobby_update': MP.players = msg.players; renderLobby();       break;
     case 'game_started': startSetupScreen();                             break;
     case 'setup_tile':   onSetupTile(msg.tile, msg.filled);             break;
@@ -1238,7 +1422,15 @@ function guestReceive(msg) {
       setTimeout(() => document.getElementById('dec-btn').classList.remove('shake'), 400);
       break;
     case 'won':          showWin(msg.winner);                            break;
-    case 'error':        toast(msg.msg);                                break;
+    case 'error':
+      toast(msg.msg, '', 4000);
+      if (msg.fatal) {
+        connecting = false;
+        document.getElementById('connecting-msg').classList.add('hidden');
+        if (MP.joined) { setTimeout(leaveGame, 2500); }
+        else { try { peer && peer.destroy(); } catch(e) {} MP.code = ''; }
+      }
+      break;
     case 'react':        showReact(msg.emoji, msg.from);               break;
   }
 }
@@ -1253,6 +1445,40 @@ function applyPublicState(s) {
   MP.currentId = s.currentId;
   MP.currentName = s.currentName;
   if (MP.phase === 'playing') renderGame();
+  else if (MP.phase === 'lobby' && document.getElementById('s-lobby').classList.contains('active')) renderLobby();
+}
+
+// Full state from the host: first join, rejoin after a drop, or host restore.
+// Puts the player straight back on the right screen.
+function onSync(m) {
+  MP.joined = true;
+  MP.myId = m.you; MP.code = m.code;
+  setTabKey(m.you);
+  hideNetBanner();
+  document.getElementById('connecting-msg').classList.add('hidden');
+  document.getElementById('g-code').textContent = MP.code;
+  MP.myHand = (m.hand || Array(10).fill(null)).slice();
+  MP.held = m.held || null;
+  MP.phase = m.phase;
+  applyPublicState(m.state);
+
+  if (m.phase === 'lobby') {
+    showLobby();
+  } else if (m.phase === 'setup') {
+    initSetupGrid();
+    show('s-setup');
+    document.getElementById('setup-wait').classList.add('hidden');
+    MP.myHand.forEach((t, i) => { if (t) fillSetupSlot(i, t); });
+    if (m.setupDone) onSetupDone(MP.myHand);
+    else if (m.setupPending) onSetupTile(m.setupPending, m.setupIdx);
+  } else if (m.phase === 'playing') {
+    show('s-game');
+    renderGame();
+  } else if (m.phase === 'ended' && m.winner) {
+    showWin(m.winner);
+    return;
+  }
+  saveState();
 }
 
 function onSetupTile(tile, filled) {
@@ -1297,6 +1523,7 @@ function setupPlace(idx) {
   if (!MP.setupPending) return;
   const slot = document.getElementById('setup-grid').children[idx];
   if (slot.classList.contains('filled')) { toast('Already filled'); return; }
+  if (!MP.isHost && (!hostConn || !hostConn.open)) { toast('Reconnecting… try again in a moment'); netWatchdog(); return; }
   fillSetupSlot(idx, MP.setupPending);
   MP.myHand[idx] = MP.setupPending;
   MP.setupPending = null;
@@ -1412,9 +1639,16 @@ function toast(msg, type = '', duration = 2800) {
   el._t = setTimeout(() => el.classList.remove('show'), duration);
 }
 
+// Invite link: friends open it, type their name, and land straight in the room
+function inviteLink() { return location.origin + location.pathname + '?room=' + MP.code; }
 function copyCode() {
-  navigator.clipboard?.writeText(MP.code)
-    .then(() => toast('Copied! ✓', 'ok'))
+  const link = inviteLink();
+  if (navigator.share && matchMedia('(pointer:coarse)').matches) {
+    navigator.share({ title:'10 Days USA', text:'Join my 10 Days USA game! Room ' + MP.code, url:link }).catch(() => {});
+    return;
+  }
+  navigator.clipboard?.writeText(link)
+    .then(() => toast('Invite link copied ✓', 'ok'))
     .catch(() => toast(MP.code, 'info'));
 }
 
@@ -1437,7 +1671,7 @@ function renderLobby() {
   const list = document.getElementById('lob-players');
   list.innerHTML = MP.players.map(p => {
     const isMe = (p.id === MP.myId);
-    const isHostPlayer = MP.isHost ? (p.id === MP.myId) : (p.id === MP.code);
+    const isHostPlayer = !!p.host;
     return '<div class="prow">' +
       '<div class="pdot' + (p.connected ? '' : ' off') + '"></div>' +
       (p.bot ? '<span style="margin-right:4px">🤖</span>' : '') +
@@ -1506,7 +1740,9 @@ function renderGame() {
 
   // Header badge
   const badge = document.getElementById('tbadge');
-  badge.textContent = myTurn ? 'Your Turn! 🎯' : ((MP.currentName || '?') + "'s turn");
+  const curP = (MP.players || []).find(p => p.id === MP.currentId);
+  badge.textContent = myTurn ? 'Your Turn! 🎯'
+    : ((MP.currentName || '?') + "'s turn" + (curP && !curP.connected && !curP.bot ? ' · offline' : ''));
   badge.className = myTurn ? 'tbadge mine' : 'tbadge';
 
   // Deck count
@@ -1545,7 +1781,8 @@ function renderGame() {
   document.getElementById('opp-list').innerHTML = others.map(p =>
     '<div class="opp-row">' +
     '<span class="opp-name' + (p.id === MP.currentId ? ' act' : '') + '">' +
-    (p.bot ? '🤖 ' : '') + p.name + (p.id === MP.currentId ? ' 🎯' : '') + '</span>' +
+    (p.bot ? '🤖 ' : '') + p.name + (p.id === MP.currentId ? ' 🎯' : '') +
+    (!p.bot && !p.connected ? ' <span style="font-size:10px;color:var(--muted)">📴 offline</span>' : '') + '</span>' +
     '<div class="opp-hand">' + Array(p.handSize || 0).fill(0).map(() => '<div class="ocard"></div>').join('') + '</div>' +
     '<span style="font-size:10px;color:var(--muted);margin-left:4px">' + (p.handSize || 0) + '</span>' +
     '</div>'
@@ -1579,7 +1816,9 @@ function renderGame() {
 }
 
 function showWin(winner) {
+  MP.phase = 'ended';
   clearSave();
+  hideNetBanner();
   const isMe = winner.id === MP.myId;
   document.getElementById('wname').textContent = isMe ? '🎉 YOU WON!' : winner.name + ' Won!';
   document.getElementById('wjrn').innerHTML = winner.hand.map(t => rt(t, { sm:true })).join('');
@@ -1595,6 +1834,12 @@ function goNext() {
   MP.myName = n;
   document.getElementById('greet').textContent = n;
   show('s-cj');
+  // Opened from an invite link → join that room right away
+  const room = new URLSearchParams(location.search).get('room');
+  if (room && /^[A-Za-z]{4}$/.test(room)) {
+    document.getElementById('join-code-in').value = room.toUpperCase();
+    joinRoom(room);
+  }
 }
 
 // Bot count adjuster on CJ screen
@@ -1878,100 +2123,113 @@ function buildPanel() {
 
 // ═══════════════════════════════════════════════════════════════════
 // PERSISTENCE
+// ───────────────────────────────────────────────────────────────────
+// Each tab saves which room it is in and its player key. The host also
+// saves the full game. Reloading the same tab goes straight back into the
+// game; opening the site again in a new tab offers a "Return to game" banner.
 // ═══════════════════════════════════════════════════════════════════
-const SAVE_KEY = '10days_save_v2';
+const SAVE_PREFIX = '10days_save_v3_';
+const SAVE_TTL = 3 * 3600 * 1000; // 3 hours
+let pendingResume = null;
 
 function saveState() {
-  if (MP.phase === 'lobby' || MP.phase === 'ended' || MP.offline) return;
+  if (MP.offline || !MP.code || !MP.myId || !MP.joined || leaving) return;
+  if (MP.phase === 'ended') { clearSave(); return; }
   try {
-    localStorage.setItem(SAVE_KEY, JSON.stringify({
-      myName:MP.myName, myId:MP.myId, isHost:MP.isHost, offline:MP.offline,
-      code:MP.code, phase:MP.phase, myHand:MP.myHand, players:MP.players,
-      discards:MP.discards, drawCount:MP.drawCount,
-      currentId:MP.currentId, currentName:MP.currentName,
+    localStorage.setItem(SAVE_PREFIX + MP.myId, JSON.stringify({
+      key:MP.myId, name:MP.myName, code:MP.code, isHost:MP.isHost,
+      phase:MP.phase, currentName:MP.currentName,
       HOST:MP.isHost ? MP.HOST : null, savedAt:Date.now()
     }));
   } catch(e) {}
 }
 
-function clearSave() { try { localStorage.removeItem(SAVE_KEY); } catch(e) {} }
+function clearSave(key) {
+  try { localStorage.removeItem(SAVE_PREFIX + (key || MP.myId)); } catch(e) {}
+}
 
-function loadSave() {
+function listSaves() {
+  const out = [];
   try {
-    const raw = localStorage.getItem(SAVE_KEY);
-    if (!raw) return null;
-    const data = JSON.parse(raw);
-    if (Date.now() - data.savedAt > 7200000) { clearSave(); return null; } // 2 hours
-    if (data.offline) { clearSave(); return null; } // Don't restore offline bot games
-    return data;
-  } catch(e) { return null; }
+    localStorage.removeItem('10days_save_v2'); // old format
+    for (let i = localStorage.length - 1; i >= 0; i--) {
+      const k = localStorage.key(i);
+      if (!k || !k.startsWith(SAVE_PREFIX)) continue;
+      try {
+        const d = JSON.parse(localStorage.getItem(k));
+        if (!d || Date.now() - d.savedAt > SAVE_TTL) { localStorage.removeItem(k); continue; }
+        out.push(d);
+      } catch(e) { localStorage.removeItem(k); }
+    }
+  } catch(e) {}
+  return out.sort((a, b) => b.savedAt - a.savedAt);
 }
 
 function checkForSave() {
-  const saved = loadSave();
-  if (!saved) return false;
-  const banner = document.getElementById('resume-banner');
-  if (!banner) return false;
-  document.getElementById('resume-name').textContent = saved.myName;
-  document.getElementById('resume-room').textContent = saved.code;
+  const saves = listSaves();
+  const tk = tabKey();
+  const mine = tk && saves.find(s => s.key === tk);
+  if (mine) { resumeGame(mine); return true; }      // same tab reloaded → straight back in
+  if (!saves.length) return false;
+  pendingResume = saves[0];
+  document.getElementById('resume-name').textContent = pendingResume.name;
+  document.getElementById('resume-room').textContent = pendingResume.code;
   document.getElementById('resume-phase').textContent =
-    saved.phase === 'setup' ? 'Setting up' : 'Playing — turn: ' + (saved.currentName || '?');
-  banner.classList.remove('hidden');
+    pendingResume.phase === 'lobby' ? 'In the lobby'
+    : pendingResume.phase === 'setup' ? 'Setting up'
+    : 'Playing — turn: ' + (pendingResume.currentName || '?');
+  document.getElementById('resume-banner').classList.remove('hidden');
   return true;
 }
 
-function resumeGame() {
-  const saved = loadSave();
-  if (!saved) { clearSave(); location.reload(); return; }
+function resumeGame(saved) {
+  saved = saved || pendingResume;
   document.getElementById('resume-banner').classList.add('hidden');
+  if (!saved) return;
+  setTabKey(saved.key);
+  leaving = false;
   Object.assign(MP, {
-    myName:saved.myName, isHost:saved.isHost, offline:false,
-    code:saved.code, myHand:saved.myHand || Array(10).fill(null),
-    players:saved.players || [], discards:saved.discards || [null,null,null],
-    drawCount:saved.drawCount || 0, currentId:saved.currentId,
-    currentName:saved.currentName, phase:saved.phase, held:null
+    myName:saved.name, myId:saved.key, isHost:saved.isHost, offline:false,
+    code:saved.code, joined:true, phase:saved.phase, held:null
   });
-  if (MP.isHost && saved.HOST) {
-    MP.HOST = saved.HOST;
-    MP.HOST.players.forEach(p => { if (p.id !== MP.code) p.connected = false; });
-  }
+  document.getElementById('name-in').value = saved.name;
   document.getElementById('g-code').textContent = MP.code;
-  toast('Reconnecting…', 'info');
+  showNetBanner('Reconnecting to room ' + MP.code + '…');
 
-  const peerId = MP.isHost ? MP.code : undefined;
-  peer = new Peer(peerId, { debug:0 });
-  peer.on('open', id => {
-    MP.myId = id;
-    if (MP.isHost) {
-      peer.on('connection', conn => {
-        conn.on('open', () => {
-          guestConns[conn.peer] = conn;
-          conn.on('data', msg => hostReceive(conn.peer, msg));
-          conn.on('close', () => hostGuestDisconnect(conn.peer));
-          const p = MP.HOST.players.find(x => x.id === conn.peer);
-          if (p) { p.connected = true; hostSendSync(conn.peer); }
-          hostBroadcastState();
-          MP.players = publicPlayers();
-        });
-      });
-      if (MP.phase === 'setup') startSetupScreen();
-      else if (MP.phase === 'playing') { show('s-game'); renderGame(); }
-      toast('Room ' + MP.code + ' restored — waiting for others to rejoin…', 'ok');
-    } else {
-      hostConn = peer.connect(MP.code, { reliable:true });
-      hostConn.on('open', () => hostConn.send({ type:'req_sync' }));
-      hostConn.on('data', msg => guestReceive(msg));
-      hostConn.on('close', () => toast('Host disconnected'));
-      if (MP.phase === 'setup') startSetupScreen();
-      else if (MP.phase === 'playing') { show('s-game'); renderGame(); }
-      toast('Reconnected! Syncing…', 'ok');
+  if (MP.isHost) {
+    MP.HOST = saved.HOST;
+    const now = Date.now();
+    MP.HOST.players.forEach(p => { if (!p.bot && !p.host) { p.connected = false; p.offSince = now; } });
+    restoreHost(0);
+  } else {
+    connectToHost();
+  }
+}
+
+function restoreHost(attempt) {
+  const retry = () => {
+    if (attempt < 20) setTimeout(() => restoreHost(attempt + 1), 3000);
+    else { toast('Could not restore the room'); leaveGame(); }
+  };
+  startHostPeer({
+    onIdTaken: retry,   // the server still remembers the old connection for a few seconds
+    onError: retry,
+    onOpen: () => {
+      hideNetBanner();
+      const H = MP.HOST;
+      hostSendSync(MP.myId);           // puts the host back on the right screen
+      hostBroadcastState();
+      H.players.forEach(p => { if (!p.connected) scheduleOfflineChecks(p); });
+      const cur = H.players[H.turnIdx];
+      if (H.phase === 'playing' && cur && cur.bot) setTimeout(() => runBotTurn(H.turnIdx), 1000);
+      toast('Room ' + MP.code + ' restored — players reconnect automatically', 'ok', 4000);
     }
   });
-  peer.on('error', e => { toast('Reconnect failed: ' + e.type); clearSave(); show('s-intro'); });
 }
 
 function discardSave() {
-  clearSave();
+  if (pendingResume) clearSave(pendingResume.key);
+  pendingResume = null;
   document.getElementById('resume-banner').classList.add('hidden');
 }
 
@@ -2020,6 +2278,7 @@ window.addEventListener('load', () => {
   })();
 });
 window.addEventListener('beforeunload', () => { saveState(); });
+window.addEventListener('pagehide', () => { saveState(); });
 </script>
 </body>
 </html>
