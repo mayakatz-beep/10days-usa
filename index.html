@@ -393,6 +393,7 @@ input:focus{border-color:var(--accent2);box-shadow:0 0 0 3px rgba(37,99,235,.25)
   <div class="ghdr">
     <div><div class="gtitle">10 Days USA</div><div class="gcode" id="g-code-wrap">Room: <span id="g-code"></span></div></div>
     <div class="hdr-r">
+      <button class="mbt" id="alert-btn" onclick="toggleAlerts()" aria-label="Turn alerts">🔔</button>
       <button class="mbt" id="map-game-btn" onclick="openGameMap()">🗺️</button>
       <div class="tbadge" id="tbadge">—</div>
     </div>
@@ -482,7 +483,14 @@ input:focus{border-color:var(--accent2);box-shadow:0 0 0 3px rgba(37,99,235,.25)
   <div style="font-size:12px;color:rgba(255,255,255,.6);margin-top:6px">Winning route:</div>
   <div class="wjrn" id="wjrn"></div>
   <div style="height:16px"></div>
-  <button class="btn btn-b" style="max-width:280px" onclick="location.reload()">Play Again</button>
+  <div id="end-host" style="width:100%;max-width:280px;display:flex;flex-direction:column;gap:8px">
+    <button class="btn btn-b" onclick="playAgain()">🔁 Another round</button>
+    <button class="btn" style="background:transparent;color:rgba(255,255,255,.8);border:2px solid rgba(255,255,255,.35)" onclick="leaveGame()">New game</button>
+  </div>
+  <div id="end-guest" style="width:100%;max-width:280px;display:none;flex-direction:column;gap:8px;align-items:center">
+    <p style="color:rgba(255,255,255,.85);font-size:13px;text-align:center">Waiting for the host to start another round<span class="dots"></span></p>
+    <button class="btn" style="background:transparent;color:rgba(255,255,255,.8);border:2px solid rgba(255,255,255,.35)" onclick="leaveGame()">Leave</button>
+  </div>
 </div>
 
 <!-- ══ HOW TO PLAY ════════════════════════════════════════════════════ -->
@@ -584,6 +592,13 @@ Object.keys(BOR).forEach(id => {
 // ═══════════════════════════════════════════════════════════════════
 // DECK & VALIDATION
 // ═══════════════════════════════════════════════════════════════════
+// Escape user-typed text (player names) before putting it into HTML
+function esc(s) {
+  return String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+const isSlot = n => Number.isInteger(n) && n >= 0 && n < 10;
+const isPile = n => Number.isInteger(n) && n >= 0 && n < 3;
+
 function shuffle(a) {
   const r = [...a];
   for (let i = r.length - 1; i > 0; i--) {
@@ -732,6 +747,24 @@ const HEARTBEAT_TIMEOUT = 15000;   // no message for this long = connection is d
 
 function peerIdFor(code) { return PEER_PREFIX + code; }
 
+// Connection helpers. STUN finds a direct route between phones; TURN relays
+// the traffic when a direct route is blocked (common on mobile data).
+// Several STUN servers + TURN over UDP and TCP give the best chance.
+// EXTRA_TURN: paste credentials of your own relay here (e.g. a free
+// metered.ca account) for the most reliable connections on cellular.
+const EXTRA_TURN = [];
+const ICE_CONFIG = {
+  iceServers: [
+    { urls:['stun:stun.l.google.com:19302','stun:stun1.l.google.com:19302','stun:stun.cloudflare.com:3478'] },
+    { urls:['turn:eu-0.turn.peerjs.com:3478','turn:us-0.turn.peerjs.com:3478',
+            'turn:eu-0.turn.peerjs.com:3478?transport=tcp','turn:us-0.turn.peerjs.com:3478?transport=tcp'],
+      username:'peerjs', credential:'peerjsp' },
+    ...EXTRA_TURN
+  ],
+  sdpSemantics:'unified-plan'
+};
+const PEER_OPTS = { debug:0, config:ICE_CONFIG };
+
 function genCode() {
   return Array.from({ length:4 }, () => 'ABCDEFGHJKLMNPQRSTUVWXYZ'[Math.floor(Math.random() * 23)]).join('');
 }
@@ -790,7 +823,7 @@ function createRoom(attempt = 0) {
 
 function startHostPeer(o) {
   try { peer && peer.destroy(); } catch(e) {}
-  const p = new Peer(peerIdFor(MP.code), { debug:0 });
+  const p = new Peer(peerIdFor(MP.code), PEER_OPTS);
   peer = p;
   let opened = false;
   p.on('open', () => { opened = true; o.onOpen(); });
@@ -835,7 +868,7 @@ function connectToHost() {
   try { old && old.close(); } catch(e) {}
   try { peer && peer.destroy(); } catch(e) {}
 
-  const p = new Peer(undefined, { debug:0 });
+  const p = new Peer(PEER_OPTS);
   peer = p;
   const fail = reason => {
     if (peer !== p) return;
@@ -847,7 +880,7 @@ function connectToHost() {
       MP.code = '';
     }
   };
-  const timer = setTimeout(() => { if (connecting && peer === p) fail('Could not reach the room — check the code'); }, 12000);
+  const timer = setTimeout(() => { if (connecting && peer === p) fail('Could not connect — check the code, or try switching to Wi-Fi'); }, 12000);
 
   p.on('open', () => {
     const c = p.connect(peerIdFor(MP.code), { reliable:true });
@@ -986,10 +1019,12 @@ function hostGuestDisconnect(pid) {
   if (H.phase === 'lobby') {
     // In the lobby just drop them — they are re-added when they reconnect
     H.players = H.players.filter(x => x !== p);
-  } else if (H.phase !== 'ended') {
+  } else {
     p.connected = false; p.offSince = Date.now();
-    toast(p.name + ' disconnected — waiting for them…', 'info', 3500);
-    scheduleOfflineChecks(p);
+    if (H.phase !== 'ended') {
+      toast(p.name + ' disconnected — waiting for them…', 'info', 3500);
+      scheduleOfflineChecks(p);
+    }
   }
   hostBroadcastState();
 }
@@ -1145,7 +1180,7 @@ function hostStartGame_impl() {
 
 function hostSetupPlace(peerId, slot) {
   const p = MP.HOST.players.find(x => x.id === peerId);
-  if (!p || p.bot || !p.pending || p.hand[slot] !== null) return;
+  if (!p || p.bot || !p.pending || !isSlot(slot) || p.hand[slot] !== null) return;
 
   p.hand[slot] = p.pending;
   p.pending = null;
@@ -1200,6 +1235,7 @@ function hostDraw(peerId, src) {
   const cur = MP.HOST.players[MP.HOST.turnIdx];
   if (!cur || cur.id !== peerId) return; // not their turn
   if (MP.HOST.heldBy) return;           // someone already holding
+  if (src !== 'pile' && !isPile(+src)) return;
   let tile;
   if (src === 'pile') {
     hostRefill();
@@ -1218,7 +1254,7 @@ function hostDraw(peerId, src) {
 }
 
 function hostSwap(peerId, slot, discard) {
-  if (MP.HOST.heldBy !== peerId) return;
+  if (MP.HOST.heldBy !== peerId || !isSlot(slot) || !isPile(discard)) return;
   const p = MP.HOST.players.find(x => x.id === peerId);
   if (!p) return;
   const old = p.hand[slot];
@@ -1232,7 +1268,7 @@ function hostSwap(peerId, slot, discard) {
 }
 
 function hostDiscardHeld(peerId, discard) {
-  if (MP.HOST.heldBy !== peerId) return;
+  if (MP.HOST.heldBy !== peerId || !isPile(discard)) return;
   if (!MP.HOST.discards[discard]) MP.HOST.discards[discard] = [];
   MP.HOST.discards[discard].push(MP.HOST.heldTile);
   MP.HOST.heldTile = null;
@@ -1243,7 +1279,8 @@ function hostDiscardHeld(peerId, discard) {
 
 function hostDeclare(peerId) {
   if (MP.HOST.phase !== 'playing') return;
-  if (MP.HOST.heldBy && MP.HOST.heldBy !== peerId) return;
+  if (MP.HOST.players[MP.HOST.turnIdx]?.id !== peerId) return; // only on your own turn
+  if (MP.HOST.heldBy) return;                                   // place the drawn tile first
   const p = MP.HOST.players.find(x => x.id === peerId);
   if (!p) return;
   const r = validate(p.hand);
@@ -1507,14 +1544,55 @@ function onPlayingStarted(firstId, firstName) {
   renderGame();
   saveState();
   maybeShowFirstRunHelp(); // show tutorial on very first game
-  if (firstId === MP.myId) toast('You go first! 🎯', 'ok', 4500);
+  if (firstId === MP.myId) { toast('You go first! 🎯', 'ok', 4500); turnAlert(); }
   else toast(firstName + ' goes first', 'info', 3500);
 }
 
 function onTurnChanged(id, name) {
   MP.held = null; MP.currentId = id; MP.currentName = name;
-  if (id === MP.myId) toast('Your turn! 🎯', 'ok', 4500);
+  if (id === MP.myId) { toast('Your turn! 🎯', 'ok', 4500); turnAlert(); }
   renderGame();
+}
+
+// ── Turn alert: vibration + short chime + tab title ───────────────
+let alertsOn = true;
+try { alertsOn = localStorage.getItem('10days_alerts') !== 'off'; } catch(e) {}
+let audioCtx = null;
+function unlockAudio() {   // browsers only allow sound after a tap
+  try { audioCtx = audioCtx || new (window.AudioContext || window.webkitAudioContext)(); audioCtx.resume(); } catch(e) {}
+}
+document.addEventListener('pointerdown', unlockAudio, { once:true });
+function chime() {
+  if (!audioCtx) return;
+  const t = audioCtx.currentTime;
+  [[880, 0], [1320, 0.16]].forEach(([f, d]) => {
+    const o = audioCtx.createOscillator(), g = audioCtx.createGain();
+    o.type = 'sine'; o.frequency.value = f;
+    g.gain.setValueAtTime(0.0001, t + d);
+    g.gain.exponentialRampToValueAtTime(0.25, t + d + 0.02);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + d + 0.35);
+    o.connect(g).connect(audioCtx.destination); o.start(t + d); o.stop(t + d + 0.4);
+  });
+}
+function turnAlert() {
+  if (MP.offline || !alertsOn) return;
+  try { navigator.vibrate?.([180, 90, 180]); } catch(e) {}
+  chime();
+}
+function toggleAlerts() {
+  alertsOn = !alertsOn;
+  try { localStorage.setItem('10days_alerts', alertsOn ? 'on' : 'off'); } catch(e) {}
+  updateAlertBtn();
+  toast(alertsOn ? 'Turn alerts on 🔔' : 'Turn alerts off 🔕', 'info');
+  if (alertsOn) { unlockAudio(); chime(); }
+}
+function updateAlertBtn() {
+  const b = document.getElementById('alert-btn');
+  if (b) { b.textContent = alertsOn ? '🔔' : '🔕'; b.style.display = MP.offline ? 'none' : ''; }
+}
+function updateTitle() {
+  const mine = MP.phase === 'playing' && MP.currentId === MP.myId && !MP.offline;
+  document.title = mine ? '🎯 Your turn! · 10 Days USA' : '10 Days USA';
 }
 
 // ═══════════════════════════════════════════════════════════════════
@@ -1676,7 +1754,7 @@ function renderLobby() {
     return '<div class="prow">' +
       '<div class="pdot' + (p.connected ? '' : ' off') + '"></div>' +
       (p.bot ? '<span style="margin-right:4px">🤖</span>' : '') +
-      '<span>' + p.name + (isHostPlayer ? '<span class="host-tag">host</span>' : '') + '</span>' +
+      '<span>' + esc(p.name) + (isHostPlayer ? '<span class="host-tag">host</span>' : '') + '</span>' +
       (isMe ? '<span class="you-tag">YOU</span>' : '') +
       '</div>';
   }).join('');
@@ -1782,7 +1860,7 @@ function renderGame() {
   document.getElementById('opp-list').innerHTML = others.map(p =>
     '<div class="opp-row">' +
     '<span class="opp-name' + (p.id === MP.currentId ? ' act' : '') + '">' +
-    (p.bot ? '🤖 ' : '') + p.name + (p.id === MP.currentId ? ' 🎯' : '') +
+    (p.bot ? '🤖 ' : '') + esc(p.name) + (p.id === MP.currentId ? ' 🎯' : '') +
     (!p.bot && !p.connected ? ' <span style="font-size:10px;color:var(--muted)">📴 offline</span>' : '') + '</span>' +
     '<div class="opp-hand">' + Array(p.handSize || 0).fill(0).map(() => '<div class="ocard"></div>').join('') + '</div>' +
     '<span style="font-size:10px;color:var(--muted);margin-left:4px">' + (p.handSize || 0) + '</span>' +
@@ -1812,6 +1890,9 @@ function renderGame() {
   const mb = document.getElementById('map-game-btn');
   if (mb) mb.textContent = pinnedState ? ('📍 ' + pinnedState) : '🗺️';
 
+  updateTitle();
+  updateAlertBtn();
+
   // Game code label
   document.getElementById('g-code').textContent = MP.offline ? 'vs Bots' : MP.code;
 }
@@ -1823,7 +1904,27 @@ function showWin(winner) {
   const isMe = winner.id === MP.myId;
   document.getElementById('wname').textContent = isMe ? '🎉 YOU WON!' : winner.name + ' Won!';
   document.getElementById('wjrn').innerHTML = winner.hand.map(t => rt(t, { sm:true })).join('');
+  document.getElementById('end-host').style.display = MP.isHost ? 'flex' : 'none';
+  document.getElementById('end-guest').style.display = MP.isHost ? 'none' : 'flex';
+  updateTitle();
   show('s-end');
+}
+
+// ── Another round with the same players ───────────────────────────
+function playAgain() {
+  if (!MP.isHost) return;
+  if (MP.offline) { playVsBots(); return; }
+  const H = MP.HOST;
+  clearTimeout(graceTimer); graceTimer = null;
+  H.players = H.players.filter(p => p.bot || p.connected);   // drop anyone who left
+  H.players.forEach(p => Object.assign(p, {
+    setupDone:false, setupIdx:0, hand:Array(10).fill(null), pending:null, offSince:0
+  }));
+  Object.assign(H, { deck:[], discards:[null,null,null], turnIdx:0,
+                     heldBy:null, heldTile:null, phase:'lobby', winner:null });
+  // Everyone goes back to the lobby together; host can add/remove bots, then Start
+  H.players.forEach(p => { if (!p.bot) hostSendSync(p.id); });
+  hostBroadcastState();
 }
 
 // ═══════════════════════════════════════════════════════════════════
@@ -1855,6 +1956,8 @@ function playVsBots() {
   if (!n) { toast('Enter your name first'); show('s-intro'); return; }
   MP.myName = n; MP.isHost = true; MP.offline = true;
   MP.myId = '__local__'; MP.code = 'BOTS';
+  Object.assign(MP.HOST, { deck:[], discards:[null,null,null], turnIdx:0,
+                           heldBy:null, heldTile:null, phase:'lobby', winner:null });
 
   MP.HOST.players = [{
     id:'__local__', name:MP.myName, connected:true, bot:false,
