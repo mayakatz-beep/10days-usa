@@ -13,7 +13,8 @@ A browser-based multiplayer board game based on **10 Days in the USA** — play 
 - **Interactive USA map** — color-coded states, click-to-pin any state to highlight its neighbors and borders
 - **Northeast panel** — VT, NH, MA, RI, CT, NJ, DE, MD displayed in a readable side panel with leader lines
 - **Full game rules enforcement** — adjacency, car (two-hop), airplane (same color), Alaska/Hawaii wildcards
-- **Session persistence** — game saves to localStorage; resume after accidental page close
+- **Drop-proof multiplayer** — reload, lose Wi-Fi or close the tab and you rejoin the same seat automatically (or tap *Return to game*). The host's room survives a reload too, and guests reconnect on their own. An offline player's turn is skipped after 30 s; they can come back any time
+- **Invite link** — share a link instead of a code; friends type their name and land straight in the room
 - **Mobile-friendly** — 44px touch targets, swipe-down to close map, responsive layout
 
 ---
