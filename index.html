@@ -584,6 +584,13 @@ Object.keys(BOR).forEach(id => {
 // ═══════════════════════════════════════════════════════════════════
 // DECK & VALIDATION
 // ═══════════════════════════════════════════════════════════════════
+// Escape user-typed text (player names) before putting it into HTML
+function esc(s) {
+  return String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+const isSlot = n => Number.isInteger(n) && n >= 0 && n < 10;
+const isPile = n => Number.isInteger(n) && n >= 0 && n < 3;
+
 function shuffle(a) {
   const r = [...a];
   for (let i = r.length - 1; i > 0; i--) {
@@ -1145,7 +1152,7 @@ function hostStartGame_impl() {
 
 function hostSetupPlace(peerId, slot) {
   const p = MP.HOST.players.find(x => x.id === peerId);
-  if (!p || p.bot || !p.pending || p.hand[slot] !== null) return;
+  if (!p || p.bot || !p.pending || !isSlot(slot) || p.hand[slot] !== null) return;
 
   p.hand[slot] = p.pending;
   p.pending = null;
@@ -1200,6 +1207,7 @@ function hostDraw(peerId, src) {
   const cur = MP.HOST.players[MP.HOST.turnIdx];
   if (!cur || cur.id !== peerId) return; // not their turn
   if (MP.HOST.heldBy) return;           // someone already holding
+  if (src !== 'pile' && !isPile(+src)) return;
   let tile;
   if (src === 'pile') {
     hostRefill();
@@ -1218,7 +1226,7 @@ function hostDraw(peerId, src) {
 }
 
 function hostSwap(peerId, slot, discard) {
-  if (MP.HOST.heldBy !== peerId) return;
+  if (MP.HOST.heldBy !== peerId || !isSlot(slot) || !isPile(discard)) return;
   const p = MP.HOST.players.find(x => x.id === peerId);
   if (!p) return;
   const old = p.hand[slot];
@@ -1232,7 +1240,7 @@ function hostSwap(peerId, slot, discard) {
 }
 
 function hostDiscardHeld(peerId, discard) {
-  if (MP.HOST.heldBy !== peerId) return;
+  if (MP.HOST.heldBy !== peerId || !isPile(discard)) return;
   if (!MP.HOST.discards[discard]) MP.HOST.discards[discard] = [];
   MP.HOST.discards[discard].push(MP.HOST.heldTile);
   MP.HOST.heldTile = null;
@@ -1243,7 +1251,8 @@ function hostDiscardHeld(peerId, discard) {
 
 function hostDeclare(peerId) {
   if (MP.HOST.phase !== 'playing') return;
-  if (MP.HOST.heldBy && MP.HOST.heldBy !== peerId) return;
+  if (MP.HOST.players[MP.HOST.turnIdx]?.id !== peerId) return; // only on your own turn
+  if (MP.HOST.heldBy) return;                                   // place the drawn tile first
   const p = MP.HOST.players.find(x => x.id === peerId);
   if (!p) return;
   const r = validate(p.hand);
@@ -1676,7 +1685,7 @@ function renderLobby() {
     return '<div class="prow">' +
       '<div class="pdot' + (p.connected ? '' : ' off') + '"></div>' +
       (p.bot ? '<span style="margin-right:4px">🤖</span>' : '') +
-      '<span>' + p.name + (isHostPlayer ? '<span class="host-tag">host</span>' : '') + '</span>' +
+      '<span>' + esc(p.name) + (isHostPlayer ? '<span class="host-tag">host</span>' : '') + '</span>' +
       (isMe ? '<span class="you-tag">YOU</span>' : '') +
       '</div>';
   }).join('');
@@ -1782,7 +1791,7 @@ function renderGame() {
   document.getElementById('opp-list').innerHTML = others.map(p =>
     '<div class="opp-row">' +
     '<span class="opp-name' + (p.id === MP.currentId ? ' act' : '') + '">' +
-    (p.bot ? '🤖 ' : '') + p.name + (p.id === MP.currentId ? ' 🎯' : '') +
+    (p.bot ? '🤖 ' : '') + esc(p.name) + (p.id === MP.currentId ? ' 🎯' : '') +
     (!p.bot && !p.connected ? ' <span style="font-size:10px;color:var(--muted)">📴 offline</span>' : '') + '</span>' +
     '<div class="opp-hand">' + Array(p.handSize || 0).fill(0).map(() => '<div class="ocard"></div>').join('') + '</div>' +
     '<span style="font-size:10px;color:var(--muted);margin-left:4px">' + (p.handSize || 0) + '</span>' +
